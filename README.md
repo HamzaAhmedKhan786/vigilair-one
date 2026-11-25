@@ -37,7 +37,15 @@ python -m scripts.replay_tools evaluate artifacts/predictions.json artifacts/ann
 
 The runner uses frame indexes divided by FPS, so use constant frame rate footage. The evaluator expects version 1 bundles with the same video digest, dimensions, FPS and frame indexes. Reference annotations use `source: manual` and pixel boxes with `label` and `xyxy`; include an empty boxes array for labeled frames without objects. Results use one-to-one class-aware matching at IoU 0.5. Reported prediction latency excludes video decoding and includes the initial inference call.
 
-Experimental SNN outputs can use the same evaluator with `source: snn`, `weights_sha256`, and `input_kind` set to `recorded_events` or `simulated_events`. An SNN runtime and event data are needed to generate predictions. Replay exports stay offline and are not imported into the console automatically.
+Experimental SNN outputs can use the same evaluator with `source: snn`, `weights_sha256`, and `input_kind` set to `recorded_events` or `simulated_events`. An SNN runtime and event data are needed to generate predictions.
+
+Open **Video replay** in the console and select the original video and the version 1 replay JSON. Files are opened locally in the browser. The video must match the digest and metadata in the bundle. Boxes can include `track_id`, `camera_id`, and `observation_timestamp` to link to an existing observation in the selected site. Select a linked frame as evidence to include its reference in the incident JSON export. Raw video and the browser's evidence selection are not stored by the API.
+
+Operator decisions are stored in local SQLite at `DECISION_DB_PATH`. Reloading the same synthetic incident retrieves its history after restart. Track observations are still stored in memory.
+
+To score the forecast against a held-out observation in the same site and track, run `python -m scripts.evaluate_forecast data/scenario.json --horizon 10 --tolerance 1`. Review the sample count and input provenance before interpreting error. Sparse replay tracks may yield no comparable samples.
+
+Run the browser workflow test using `npm run test:browser`. Set `PLAYWRIGHT_CHANNEL=msedge` in the environment to use installed Edge, or install Playwright Chromium with `npx playwright install chromium`.
 
 Run the complete local verification suite with:
 

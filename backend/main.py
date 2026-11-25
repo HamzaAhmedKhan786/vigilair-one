@@ -14,13 +14,15 @@ from .geometry import analyze_track
 from .resource_allocator import allocate
 from .calibration import load_calibrations
 from .decision_engine import decision_packet
+from .decision_store import DecisionStore
 from .geospatial import evaluate_handoff, haversine_m
 from .multisite import GlobalTrackStore
 
 settings = get_settings()
 app = FastAPI(title="VIGILAIR ONE API", version="0.1.0", description="Decision-support API; no physical-control interface.")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_methods=["*"], allow_headers=["*"])
-store = TrackStore(); decisions: dict[str, list[OperatorDecision]] = {}
+store = TrackStore()
+decisions = DecisionStore(settings.resolve(settings.decision_db_path))
 calibrations = load_calibrations(settings.resolve(settings.calibration_path))
 site_registry = [Site.model_validate(item) for item in json.loads(settings.resolve(settings.sites_path).read_text(encoding="utf-8"))["sites"]]
 environment_events: list[EnvironmentObservation] = []
@@ -96,7 +98,7 @@ def evaluate_fusion(request: SensorFusionRequest):
 
 @app.post("/api/replay/reset")
 def replay_reset():
-    store.clear(); global_tracks.clear(); decisions.clear()
+    store.clear(); global_tracks.clear()
     observations = load_scenario(settings.resolve(settings.scenario_path))
     for observation in observations:
         store.add(observation)
@@ -118,7 +120,8 @@ def track_analytics(track_id: str, site_id: str | None = None):
         )
     if not observations: raise HTTPException(404, "track not found")
     try:
-        analytics = analyze_track(observations, (120, 60, 180, 120))
+        zone = (120, 60, 180, 120) if site_id in (None, 'berlin-brandenburg-demo') else None
+        analytics = analyze_track(observations, zone)
     except ValueError as exc: raise HTTPException(422, str(exc)) from exc
     metric = [item for item in observations if item.site_position_m is not None]
     anchor = metric[-1]
@@ -146,15 +149,21 @@ def resource_allocation(track_id: str):
 
 @app.post("/api/tracks/{track_id}/decisions", response_model=OperatorDecision)
 def decide(track_id: str, decision: OperatorDecision):
-    if not store.get(track_id): raise HTTPException(404, "track not found")
-    decisions.setdefault(track_id, []).append(decision)
+    observations = store.get(track_id)
+    if not observations: raise HTTPException(404, "track not found")
+    if decision.action not in assess_risk(observations, (650, 250, 900, 450)).recommended_actions:
+        raise HTTPException(422, "Action is not a current recommendation for this track")
+    if decision.decision == "modified" and not (decision.note or "").strip():
+        raise HTTPException(422, "Modified decisions require an operator note")
+    decisions.add(observations[0], decision)
     return decision
 
 @app.get("/api/incidents/{track_id}", response_model=IncidentReport)
 def incident(track_id: str):
     observations = store.get(track_id)
     if not observations: raise HTTPException(404, "track not found")
-    return IncidentReport(incident_id=f"INC-{track_id}", site_id=settings.site_id, track_id=track_id, opened_at=observations[0].timestamp, observations=observations, risk=assess_risk(observations, (650, 250, 900, 450)), decisions=decisions.get(track_id, []))
+    first = observations[0]
+    return IncidentReport(incident_id=f"INC-{track_id}", site_id=first.site_id, track_id=track_id, opened_at=first.timestamp, observations=observations, risk=assess_risk(observations, (650, 250, 900, 450)), decisions=decisions.history(first))
 
 @app.get("/api/tracks/{track_id}/brief")
 def operator_brief(track_id: str):

@@ -33,6 +33,7 @@ class Observation(BaseModel):
     speed_mps: float = Field(ge=0)
     heading_deg: float = Field(ge=0, lt=360)
     site_position_m: list[float] | None = Field(default=None, min_length=2, max_length=3)
+    position_uncertainty_m: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     appearance_embedding: list[float] | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)

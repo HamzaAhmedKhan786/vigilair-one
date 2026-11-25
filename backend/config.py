@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     featherless_base_url: str = "https://api.featherless.ai/v1"
     featherless_model: str = "zai-org/GLM-5.3-Flash"
     database_url: str = "sqlite:///./data/vigilair.db"
+    decision_db_path: str = "data/operator_decisions.db"
     retention_days: int = 30
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 

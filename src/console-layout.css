@@ -25,6 +25,22 @@
 .regional-panel th, .regional-note { color: var(--muted); font-size: 11px; }
 .regional-note { margin: 10px 15px; }
 .regional-select, .regional-panel td button { background: var(--panel2); color: var(--cyan); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; }
+.video-inputs, .review-form { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; padding: 14px; }
+.video-inputs label, .review-form label { display: grid; gap: 5px; font-size: 12px; }
+.video-inputs button, .video-observations button, .review-form button, .review-form select, .review-form input {
+  background: var(--panel2); color: #dce8f3; border: 1px solid var(--line); border-radius: 4px; padding: 8px;
+}
+.annotated-content { display: grid; grid-template-columns: minmax(0, 2fr) minmax(210px, 1fr); gap: 14px; padding: 14px; }
+.annotated-stage { position: relative; align-self: start; background: #050a12; }
+.annotated-stage video { display: block; width: 100%; height: 100%; }
+.video-box { position: absolute; pointer-events: none; border: 2px solid var(--muted); color: #fff; }
+.video-box.green { border-color: var(--green); }
+.video-box.amber { border-color: var(--amber); }
+.video-box.cyan { border-color: var(--cyan); }
+.video-box span { display: block; width: max-content; max-width: 130px; overflow: hidden; text-overflow: ellipsis; background: #07111edb; font-size: 10px; padding: 2px 4px; }
+.video-observations button { display: block; margin-bottom: 6px; }
+.review-form { position: sticky; bottom: 10px; z-index: 6; margin-top: 12px; border-color: var(--cyan); }
+@media (max-width: 650px) { .annotated-content { grid-template-columns: 1fr; } }
 .thermal-panel .padded { margin: 0; }
 .thermal-sample { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; padding: 0 15px; }
 .thermal-sample > div { background: #102337; border: 1px solid var(--line); border-radius: 4px; padding: 10px; }
