@@ -33,6 +33,10 @@ The edge box should process frames locally and send metadata rather than full vi
 - `backend/risk_engine.py`: transparent baseline score, intentionally separate from ML inference.
 - `backend/replay.py`: loads licensed or synthetic scenario data.
 - `backend/config.py`: environment-driven settings and safe path resolution.
+- `backend/geometry.py`: metric path length, distance, heading, ETA, prediction, and closest approach.
+- `backend/association.py`: cross-camera candidate scoring using time, site position, class, and optional appearance.
+- `backend/resource_allocator.py`: simulated allocation of cameras, recorders, and human reviewers only.
+- `backend/ml_risk.py`: optional XGBoost risk layer for a future sufficiently labeled dataset.
 
 ## Data flow and timing targets
 

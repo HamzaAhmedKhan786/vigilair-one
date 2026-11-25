@@ -23,12 +23,21 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
 Or use `scripts/run_demo.ps1`.
 
+Run the complete local verification suite with:
+
+```powershell
+.\scripts\verify_project.ps1
+```
+
 ## Replay the dummy scenario
 
 ```powershell
 curl -X POST http://localhost:8000/api/replay/reset
 curl http://localhost:8000/api/tracks
 curl http://localhost:8000/api/incidents/VIG-042
+curl http://localhost:8000/api/tracks/VIG-042/analytics
+curl http://localhost:8000/api/tracks/VIG-042/resource-allocation
+curl -X POST http://localhost:8000/api/calibration/pixel-to-site -H "Content-Type: application/json" -d '{"camera_id":"CAM-01","x":100,"y":900}'
 ```
 
 The scenario contains a likely drone crossing cameras and a bird false alarm. The risk score is deliberately transparent and independent of any language model.
@@ -41,6 +50,8 @@ The scenario contains a likely drone crossing cameras and a bird false alarm. Th
 - `docs/SYSTEM_DESIGN.md`: architecture and scaling plan.
 - `docs/DATA_CONTRACT.md`: expected camera, detection, tracking, and sensor payloads.
 - `docs/MODELS_AND_ENV.md`: model choices, Featherless usage, and environment setup.
+- `docs/ALGORITHMS.md`: detector, tracker, geometry, fusion, XGBoost, and evaluation choices.
+- `docs/HARDWARE_PLAN.md`: fixed-site low-cost hardware and calibration requirements.
 - `docs/screenshots/dashboard.svg`: dashboard preview asset.
 - `testsampledata/`: synthetic multimodal fixtures for video, detections, tracks, radar, thermal, Remote ID, acoustic, weather, health, and incidents.
 

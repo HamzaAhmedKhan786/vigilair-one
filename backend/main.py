@@ -4,17 +4,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .replay import load_scenario
 from .risk_engine import assess_risk
-from .schemas import AudioObservation, Camera, IncidentReport, Observation, OperatorDecision, SensorFusionRequest
+from .schemas import AudioObservation, Camera, IncidentReport, Observation, OperatorDecision, OwnshipState, SensorFusionRequest
 from .agent import build_operator_brief
 from .hardware import observation_from_hardware
 from .tracker import TrackStore
 from .audio import extract_acoustic_features
 from .fusion import fuse_sensors
+from .geometry import analyze_track
+from .resource_allocator import allocate
+from .calibration import load_calibrations
 
 settings = get_settings()
 app = FastAPI(title="VIGILAIR ONE API", version="0.1.0", description="Decision-support API; no physical-control interface.")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_methods=["*"], allow_headers=["*"])
 store = TrackStore(); decisions: dict[str, list[OperatorDecision]] = {}
+calibrations = load_calibrations(settings.resolve(settings.calibration_path))
 
 @app.get("/health")
 def health():
@@ -23,6 +27,12 @@ def health():
 @app.get("/api/cameras", response_model=list[Camera])
 def cameras():
     return json.loads(settings.resolve(settings.camera_config_path).read_text(encoding="utf-8"))
+
+@app.post("/api/calibration/pixel-to-site")
+def pixel_to_site(payload: dict):
+    camera_id = str(payload["camera_id"])
+    if camera_id not in calibrations: raise HTTPException(404, "camera calibration not found")
+    return calibrations[camera_id].pixel_to_site(float(payload["x"]), float(payload["y"]))
 
 @app.post("/api/observations", response_model=dict)
 def ingest(observation: Observation):
@@ -53,6 +63,27 @@ def replay_reset():
 @app.get("/api/tracks")
 def tracks():
     return [{"track_id": track_id, "observations": values, "risk": assess_risk(values, (650, 250, 900, 450))} for track_id, values in store.all().items()]
+
+@app.get("/api/tracks/{track_id}/analytics")
+def track_analytics(track_id: str):
+    observations = store.get(track_id)
+    if not observations: raise HTTPException(404, "track not found")
+    try: return analyze_track(observations, (120, 60, 180, 120))
+    except ValueError as exc: raise HTTPException(422, str(exc)) from exc
+
+@app.post("/api/tracks/{track_id}/relative-analytics")
+def relative_analytics(track_id: str, ownship: OwnshipState):
+    observations = store.get(track_id)
+    if not observations: raise HTTPException(404, "track not found")
+    try: return analyze_track(observations, (120, 60, 180, 120), ownship=ownship)
+    except ValueError as exc: raise HTTPException(422, str(exc)) from exc
+
+@app.get("/api/tracks/{track_id}/resource-allocation")
+def resource_allocation(track_id: str):
+    observations = store.get(track_id)
+    if not observations: raise HTTPException(404, "track not found")
+    risk = assess_risk(observations, (650, 250, 900, 450))
+    return allocate(track_id, risk.score)
 
 @app.post("/api/tracks/{track_id}/decisions", response_model=OperatorDecision)
 def decide(track_id: str, decision: OperatorDecision):

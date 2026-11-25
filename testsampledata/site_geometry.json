@@ -1,0 +1,7 @@
+{
+  "coordinate_system":"local ENU meters",
+  "origin":{"latitude":52.3667,"longitude":13.5033,"altitude_m":34.0},
+  "zones":[{"zone_id":"RESTRICTED-01","name":"Restricted operations zone","polygon_m":[[120,60],[180,60],[180,120],[120,120]],"severity":"critical"},{"zone_id":"FUEL-01","name":"Fuel depot","polygon_m":[[70,130],[100,130],[100,165],[70,165]],"severity":"high"}],
+  "protected_assets":[{"asset_id":"DEPOT-A","name":"Fuel depot tanks","position_m":[85,148,0]},{"asset_id":"OPS-A","name":"Operations building","position_m":[155,88,0]}],
+  "optional_ownship":{"object_id":"OWN-01","position_m":[20,20,80],"velocity_mps":[0,0,0],"note":"Only for future friendly airborne-sensor calculations; no control commands."}
+}

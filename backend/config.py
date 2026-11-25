@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     site_name: str = "Brandenburg Perimeter"
     camera_config_path: str = "data/cameras.json"
     scenario_path: str = "data/scenario.json"
+    calibration_path: str = "data/calibrations.json"
     evidence_dir: str = "data/evidence"
     model_provider: str = "local"
     detector_model: str = "yolo11n.pt"

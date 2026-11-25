@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pydantic import BaseModel, Field
 
@@ -31,7 +31,33 @@ class Observation(BaseModel):
     centroid_xy: list[float] = Field(min_length=2, max_length=2)
     speed_mps: float = Field(ge=0)
     heading_deg: float = Field(ge=0, lt=360)
+    site_position_m: list[float] | None = Field(default=None, min_length=2, max_length=3)
+    appearance_embedding: list[float] | None = None
     source: str = "synthetic"
+
+class OwnshipState(BaseModel):
+    timestamp: datetime
+    object_id: str = "OWN-01"
+    position_m: list[float] = Field(min_length=2, max_length=3)
+    velocity_mps: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0], min_length=2, max_length=3)
+
+class TrackAnalytics(BaseModel):
+    track_id: str
+    path_length_m: float
+    displacement_m: float
+    current_speed_mps: float
+    average_speed_mps: float
+    heading_deg: float
+    acceleration_mps2: float
+    turn_rate_deg_s: float
+    dwell_seconds: float
+    distance_to_restricted_zone_m: float | None
+    eta_to_restricted_zone_s: float | None
+    distance_to_ownship_m: float | None = None
+    closest_approach_m: float | None = None
+    closest_approach_seconds: float | None = None
+    behaviors: list[str]
+    predicted_path_m: list[list[float]]
 
 class AudioObservation(BaseModel):
     timestamp: datetime
@@ -74,6 +100,7 @@ class OperatorDecision(BaseModel):
     decision: str = Field(pattern="^(accepted|rejected|modified)$")
     operator_id: str = "demo-operator"
     note: str | None = None
+    decided_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class IncidentReport(BaseModel):
     incident_id: str
@@ -83,4 +110,4 @@ class IncidentReport(BaseModel):
     closed_at: datetime | None = None
     observations: list[Observation]
     risk: RiskAssessment
-    decisions: list[OperatorDecision] = []
+    decisions: list[OperatorDecision] = Field(default_factory=list)

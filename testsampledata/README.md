@@ -14,5 +14,7 @@ All files in this folder are synthetic fixtures for local development and demos.
 - `weather.jsonl`: wind, visibility, and precipitation context.
 - `camera_health.jsonl`: dropped frames, latency, and stream health.
 - `incidents.json`: incident, recommendation, operator decision, and audit examples.
+- `site_geometry.json`: local metric zones, protected assets, and an optional ownship example.
+- `risk_training_template.csv`: feature schema only; four rows are intentionally insufficient to train a deployable model.
 
 Expected live adapters should preserve UTC timestamps, stable camera IDs, source IDs, and a common `track_id` where association is available.
