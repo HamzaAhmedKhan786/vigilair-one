@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Activity, AlertTriangle, Camera, Check, ChevronRight, CircleDot, Download, Eye, Focus, MapPin, Radio, ShieldCheck, Siren, X } from 'lucide-react'
+import { Activity, AlertTriangle, Camera, Check, ChevronRight, CircleDot, Download, Eye, Focus, Globe2, MapPin, Mic, Moon, Radio, ShieldCheck, Siren, Sun, X } from 'lucide-react'
 import './styles.css'
 
 const initialTracks = [
   { id: 'VIG-042', label: 'UAS / likely quadcopter', camera: 'CAM-02', zone: 'Fuel depot perimeter', risk: 86, status: 'Escalating', dwell: '03:12', speed: '4.8 m/s', direction: '→ restricted zone', points: '12 / 12' },
   { id: 'VIG-038', label: 'Bird / low confidence', camera: 'CAM-04', zone: 'North service road', risk: 18, status: 'Review', dwell: '00:08', speed: '11.2 m/s', direction: '↗ away from site', points: '4 / 12' },
 ]
+const initialSites = [{site_id:'berlin-brandenburg-demo',name:'Brandenburg Perimeter',latitude:52.3667,longitude:13.5033,status:'online'},{site_id:'berlin-east-demo',name:'Berlin East Infrastructure',latitude:52.4205,longitude:13.7012,status:'online'},{site_id:'potsdam-demo',name:'Potsdam Critical Site',latitude:52.3906,longitude:13.0645,status:'online'}]
 
 function App() {
   const [tracks, setTracks] = useState(initialTracks)
@@ -14,6 +15,7 @@ function App() {
   const [banner, setBanner] = useState('Live simulation · 4 camera feeds · 12 FPS edge pipeline')
   const [analytics, setAnalytics] = useState(null)
   const [allocation, setAllocation] = useState(null)
+  const [sites, setSites] = useState(initialSites)
   const active = useMemo(() => tracks.find(t => t.id === selected) ?? tracks[0], [tracks, selected])
 
   useEffect(() => {
@@ -27,6 +29,8 @@ function App() {
       .then(() => setBanner('Backend replay connected · live API data'))
       .catch(() => setBanner('Demo mode · backend unavailable, using local simulation'))
   }, [])
+
+  useEffect(() => { fetch('http://localhost:8000/api/sites').then(r => r.ok ? r.json() : Promise.reject()).then(setSites).catch(() => {}) }, [])
 
   useEffect(() => {
     Promise.all([fetch(`http://localhost:8000/api/tracks/${selected}/analytics`).then(r => r.ok ? r.json() : null), fetch(`http://localhost:8000/api/tracks/${selected}/resource-allocation`).then(r => r.ok ? r.json() : null)])
@@ -53,6 +57,7 @@ function App() {
     <header className="topbar"><div className="brand"><div className="brand-mark">V</div><div><div className="brand-name">VIGILAIR<span>ONE</span></div><div className="tagline">NEUROMORPHIC AERIAL INTELLIGENCE</div></div></div><div className="top-status"><span className="pulse" /> SYSTEM ONLINE <span className="divider" /> SITE: BERLIN-BRANDENBURG <span className="divider" /> <span className="muted">25 NOV 2026 · 21:14:08 CET</span></div></header>
     <main>
       <section className="hero"><div><div className="eyebrow">OPERATIONS CONSOLE / DECISION SUPPORT ONLY</div><h1>Continuous awareness<br/><em>across every camera.</em></h1><p>Track, explain, and coordinate a response to aerial threats before a single frame becomes an incident.</p></div><div className="hero-meta"><div className="meta-card"><span>ACTIVE TRACKS</span><strong>02</strong></div><div className="meta-card"><span>CAMERAS</span><strong>04</strong></div><div className="meta-card"><span>EDGE LATENCY</span><strong>84<span>ms</span></strong></div></div></section>
+      <section className="live-layout"><div className="panel live-feed-panel"><div className="panel-head"><div><div className="eyebrow">CAM-02 / LIVE DEMO FRAME</div><h2>Night perimeter detection</h2></div><span className="live-chip"><span className="pulse"/> SYNTHETIC LIVE</span></div><div className="camera-frame"><img src="/demo/night-camera-synthetic.png" alt="Synthetic night security camera frame with a drone and bird"/><div className="detection-box drone-box"><span>VIG-042 · DRONE 91%</span></div><div className="detection-box bird-box"><span>VIG-038 · BIRD 34%</span></div><div className="frame-crosshair"/><div className="frame-time">CAM-02 · 21:01:12.084 UTC · FRAME 073464</div></div><div className="sensor-ribbon"><span><Moon size={13}/> IR ASSIST ON</span><span><Sun size={13}/> 0.8 LUX</span><span><Mic size={13}/> ROTOR 62%</span><span><Activity size={13}/> MOTION 87%</span><span><Eye size={13}/> VISIBILITY 4.2 KM</span></div></div><div className="panel fleet-panel"><div className="panel-head"><div><div className="eyebrow">MULTI-SITE FLEET</div><h2>Regional continuity</h2></div><Globe2 size={18}/></div><div className="site-list">{sites.map((site,index)=><div className={`site-row ${index===0?'active':''}`} key={site.site_id}><span className="site-index">0{index+1}</span><span><strong>{site.name}</strong><small>{site.latitude.toFixed(4)}° N · {site.longitude.toFixed(4)}° E</small></span><b>{site.status}</b></div>)}</div><div className="handoff-card"><span>GLOBAL TRACK</span><strong>GLOBAL-042</strong><small>Brandenburg → Berlin East candidate</small><div><i style={{width:'68%'}}/>68% handoff confidence</div></div></div></section>
       <div className="grid-layout">
         <section className="panel map-panel"><div className="panel-head"><div><div className="eyebrow">SITE OVERVIEW</div><h2>Brandenburg perimeter</h2></div><span className="live-chip"><Radio size={13}/> LIVE SIMULATION</span></div><div className="map"><div className="map-grid"/><div className="restricted"><span>RESTRICTED ZONE</span></div><div className="depot"><span>FUEL DEPOT</span></div><div className="route route-a"/><div className="route route-b"/>{tracks.map((t, i) => <button key={t.id} className={`track-dot track-${i} ${selected === t.id ? 'selected' : ''}`} onClick={() => setSelected(t.id)}><span>{t.id}</span></button>)}<div className="camera-pin pin-1"><Camera size={12}/> 01</div><div className="camera-pin pin-2"><Camera size={12}/> 02</div><div className="camera-pin pin-3"><Camera size={12}/> 03</div><div className="camera-pin pin-4"><Camera size={12}/> 04</div><div className="map-legend"><span><i className="dot red"/> high risk</span><span><i className="dot amber"/> review</span><span><i className="line"/> predicted path</span></div></div><div className="map-foot"><span><MapPin size={14}/> 52.3667° N, 13.5033° E</span><span>4 synchronized streams <ChevronRight size={14}/></span></div></section>
         <section className="panel alert-panel"><div className="panel-head"><div><div className="eyebrow">RISK INTELLIGENCE</div><h2>Why this matters</h2></div><div className="risk-score"><strong>{active.risk}</strong><span>/ 100 RISK</span></div></div><div className="risk-bar"><span style={{width:`${active.risk}%`}}/></div><div className="signal-list"><Signal title="Dwell time" value={active.dwell} detail="threshold exceeded" high/><Signal title="Trajectory" value={active.direction} detail="restricted zone vector" high/><Signal title="Object confidence" value={active.id === 'VIG-042' ? '91%' : '34%'} detail={active.id === 'VIG-042' ? 'drone morphology' : 'bird-like motion'}/></div><div className="explain"><Activity size={16}/><span>Risk is explainable: dwell time + directional change + geofence proximity. No autonomous action is taken.</span></div></section>

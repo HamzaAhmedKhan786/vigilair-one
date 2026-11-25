@@ -1,0 +1,2 @@
+{"timestamp":"2026-11-25T21:01:12Z","site_id":"berlin-brandenburg-demo","sensor_id":"CAM-02-PHOTOMETRIC","illuminance_lux":0.8,"motion_score":0.87,"infrared_active":true,"thermal_contrast":0.62,"visibility_m":4200,"confidence":0.93}
+{"timestamp":"2026-11-25T21:01:12Z","site_id":"berlin-east-demo","sensor_id":"CAM-E01-PHOTOMETRIC","illuminance_lux":3.4,"motion_score":0.19,"infrared_active":false,"thermal_contrast":null,"visibility_m":5100,"confidence":0.88}

@@ -37,6 +37,8 @@ curl http://localhost:8000/api/tracks
 curl http://localhost:8000/api/incidents/VIG-042
 curl http://localhost:8000/api/tracks/VIG-042/analytics
 curl http://localhost:8000/api/tracks/VIG-042/resource-allocation
+curl http://localhost:8000/api/sites
+curl http://localhost:8000/api/global-tracks
 curl -X POST http://localhost:8000/api/calibration/pixel-to-site -H "Content-Type: application/json" -d '{"camera_id":"CAM-01","x":100,"y":900}'
 ```
 
@@ -52,12 +54,19 @@ The scenario contains a likely drone crossing cameras and a bird false alarm. Th
 - `docs/MODELS_AND_ENV.md`: model choices, Featherless usage, and environment setup.
 - `docs/ALGORITHMS.md`: detector, tracker, geometry, fusion, XGBoost, and evaluation choices.
 - `docs/HARDWARE_PLAN.md`: fixed-site low-cost hardware and calibration requirements.
+- `docs/DATASETS.md`: candidate public/research datasets and leakage-safe split policy.
 - `docs/screenshots/dashboard.svg`: dashboard preview asset.
 - `testsampledata/`: synthetic multimodal fixtures for video, detections, tracks, radar, thermal, Remote ID, acoustic, weather, health, and incidents.
 
 ## Dashboard preview
 
 ![VIGILAIR ONE dashboard preview](docs/screenshots/dashboard.svg)
+
+The live-demo camera panel uses the project-owned synthetic frame at `public/demo/night-camera-synthetic.png` and overlays the drone and bird detections in the browser.
+
+![Synthetic night camera source frame](public/demo/night-camera-synthetic.png)
+
+![Live multi-site detection preview](docs/screenshots/live-multisite.svg)
 
 ## Control boundary
 

@@ -16,5 +16,7 @@ All files in this folder are synthetic fixtures for local development and demos.
 - `incidents.json`: incident, recommendation, operator decision, and audit examples.
 - `site_geometry.json`: local metric zones, protected assets, and an optional ownship example.
 - `risk_training_template.csv`: feature schema only; four rows are intentionally insufficient to train a deployable model.
+- `multisite_tracks.jsonl`: latitude/longitude handoff candidate between two sites.
+- `light_motion.jsonl`: lux, motion, IR, thermal contrast, and visibility observations.
 
 Expected live adapters should preserve UTC timestamps, stable camera IDs, source IDs, and a common `track_id` where association is available.

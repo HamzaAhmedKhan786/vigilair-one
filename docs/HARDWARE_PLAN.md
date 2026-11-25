@@ -7,8 +7,11 @@
 - One USB microphone array for directional acoustic evidence.
 - Existing network switch/PoE and local SSD for short evidence clips.
 - Optional thermal camera, Remote ID receiver, or compact radar as independent corroborating sensors.
+- Optional photometric/light sensor and PIR/event-camera adapter for low-light motion cues.
 
 This is a fixed-site counter-UAS awareness product. It does not require a drone to detect other drones. A friendly drone would add regulatory, battery, link-security, weather, and safety burdens and is unnecessary for the weekend MVP.
+
+The system can recommend contacting authorized authorities, pausing operations, warning staff, preserving evidence, and focusing observation sensors. It does not emit jamming energy, spoof navigation, seize a control link, or command capture equipment.
 
 ## Metric distance requirements
 

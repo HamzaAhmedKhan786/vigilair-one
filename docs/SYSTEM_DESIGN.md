@@ -53,9 +53,14 @@ Single site: one edge GPU/CPU box, four cameras, local SQLite/object storage, on
 
 Multi-site: one gateway per site, central event bus for metadata, tenant/site IDs on every record, regional object storage, and a fleet view with degraded-connectivity store-and-forward. Keep the video plane site-local; replicate only incident metadata and selected evidence.
 
+Every site and observation can carry WGS84 latitude, longitude, and altitude plus a local metric coordinate. Local IDs remain site-scoped; the regional layer creates a global track only when travel time, geodesic distance, class, predicted path, and optional appearance are compatible. Site handoff always remains a reviewable candidate rather than silently merging identities.
+
+`backend/multisite.py` preserves the ordered relationship between a global track, each site-local track ID, geospatial positions, confidence, and handoff state. The demo store is in-memory; production should persist it in a regional database or event stream partitioned by tenant and site.
+
 ## Safety and security controls
 
 - No API routes for physical intervention or weapon control.
+- No jammer, takeover, capture, or flight-control interface. Such countermeasures are outside the product and challenge scope.
 - RBAC: viewer, operator, supervisor, auditor.
 - Signed evidence manifests and UTC timestamps.
 - Encrypt video/object storage and restrict retention.

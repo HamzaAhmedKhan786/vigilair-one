@@ -1,0 +1,2 @@
+{"timestamp":"2026-11-25T21:01:12Z","global_track_id":"GLOBAL-042","site_id":"berlin-brandenburg-demo","local_track_id":"VIG-042","latitude":52.36705,"longitude":13.50410,"altitude_m":71,"confidence":0.91}
+{"timestamp":"2026-11-25T21:04:12Z","global_track_id":"GLOBAL-042","site_id":"berlin-east-demo","local_track_id":"EAST-014","latitude":52.36802,"longitude":13.52250,"altitude_m":73,"confidence":0.74,"handoff_status":"candidate"}
