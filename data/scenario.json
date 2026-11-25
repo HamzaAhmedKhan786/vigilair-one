@@ -1,0 +1,6 @@
+{"scenario_id":"night-loiter-001","site_id":"berlin-brandenburg-demo","restricted_zone":{"left":650,"top":250,"right":900,"bottom":450},"observations":[
+{"timestamp":"2026-11-25T20:58:00Z","camera_id":"CAM-01","track_id":"VIG-042","class_name":"drone","confidence":0.82,"bbox_xyxy":[190,250,240,290],"centroid_xy":[215,270],"speed_mps":3.1,"heading_deg":42,"source":"synthetic"},
+{"timestamp":"2026-11-25T21:00:00Z","camera_id":"CAM-02","track_id":"VIG-042","class_name":"drone","confidence":0.88,"bbox_xyxy":[430,270,490,318],"centroid_xy":[460,294],"speed_mps":2.0,"heading_deg":18,"source":"synthetic"},
+{"timestamp":"2026-11-25T21:01:12Z","camera_id":"CAM-02","track_id":"VIG-042","class_name":"drone","confidence":0.91,"bbox_xyxy":[690,310,755,360],"centroid_xy":[722,335],"speed_mps":4.8,"heading_deg":8,"source":"synthetic"},
+{"timestamp":"2026-11-25T21:00:40Z","camera_id":"CAM-04","track_id":"VIG-038","class_name":"bird","confidence":0.34,"bbox_xyxy":[100,520,145,555],"centroid_xy":[122,537],"speed_mps":11.2,"heading_deg":315,"source":"synthetic"}
+]}

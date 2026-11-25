@@ -1,0 +1,1 @@
+"""VIGILAIR ONE backend package."""

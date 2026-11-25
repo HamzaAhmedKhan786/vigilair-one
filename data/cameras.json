@@ -1,0 +1,6 @@
+[
+  {"camera_id":"CAM-01","name":"West fence","stream_uri":"synthetic://cam-01","site_id":"berlin-brandenburg-demo","latitude":52.3667,"longitude":13.5033,"fps":12,"resolution":"1920x1080","sensor_type":"rgb","status":"online"},
+  {"camera_id":"CAM-02","name":"Fuel depot approach","stream_uri":"synthetic://cam-02","site_id":"berlin-brandenburg-demo","latitude":52.3668,"longitude":13.5041,"fps":12,"resolution":"1920x1080","sensor_type":"rgb","status":"online"},
+  {"camera_id":"CAM-03","name":"Restricted-zone gate","stream_uri":"synthetic://cam-03","site_id":"berlin-brandenburg-demo","latitude":52.3672,"longitude":13.5038,"fps":12,"resolution":"1920x1080","sensor_type":"rgb","status":"online"},
+  {"camera_id":"CAM-04","name":"North service road","stream_uri":"synthetic://cam-04","site_id":"berlin-brandenburg-demo","latitude":52.3675,"longitude":13.5029,"fps":12,"resolution":"1920x1080","sensor_type":"rgb","status":"online"}
+]
