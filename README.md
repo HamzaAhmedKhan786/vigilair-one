@@ -41,3 +41,13 @@ The scenario contains a likely drone crossing cameras and a bird false alarm. Th
 - `docs/SYSTEM_DESIGN.md`: architecture and scaling plan.
 - `docs/DATA_CONTRACT.md`: expected camera, detection, tracking, and sensor payloads.
 - `docs/MODELS_AND_ENV.md`: model choices, Featherless usage, and environment setup.
+- `docs/screenshots/dashboard.svg`: dashboard preview asset.
+- `testsampledata/`: synthetic multimodal fixtures for video, detections, tracks, radar, thermal, Remote ID, acoustic, weather, health, and incidents.
+
+## Dashboard preview
+
+![VIGILAIR ONE dashboard preview](docs/screenshots/dashboard.svg)
+
+## Control boundary
+
+The app includes observation and coordination controls only: camera focus, evidence replay, operator summaries, track annotation, and recommendation logging. It intentionally cannot pilot or redirect a drone, control a weapon, operate a jammer, trigger an interceptor, or command any physical response system.
