@@ -33,6 +33,34 @@ class Observation(BaseModel):
     heading_deg: float = Field(ge=0, lt=360)
     source: str = "synthetic"
 
+class AudioObservation(BaseModel):
+    timestamp: datetime
+    sensor_id: str
+    track_id: str | None = None
+    rms_dbfs: float = Field(ge=-120, le=0)
+    spectral_centroid_hz: float = Field(ge=0)
+    rotor_band_energy: float = Field(ge=0, le=1)
+    harmonic_score: float = Field(ge=0, le=1)
+    noise_floor_dbfs: float = Field(ge=-120, le=0)
+    confidence: float = Field(ge=0, le=1)
+    source: str = "synthetic"
+
+class SensorFusionRequest(BaseModel):
+    track_id: str
+    camera_confidence: float = Field(ge=0, le=1)
+    audio: AudioObservation | None = None
+    radar_confidence: float | None = Field(default=None, ge=0, le=1)
+    remote_id_match: bool = False
+    camera_health_score: float = Field(default=1.0, ge=0, le=1)
+
+class SensorFusionResult(BaseModel):
+    track_id: str
+    fused_confidence: float = Field(ge=0, le=1)
+    sensor_count: int
+    level: str
+    reasons: list[str]
+    limitations: list[str]
+
 class RiskAssessment(BaseModel):
     track_id: str
     score: int = Field(ge=0, le=100)

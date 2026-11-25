@@ -21,6 +21,8 @@ RGB / thermal cameras ──> capture adapters ──> local detector
                               React operator console + audit log
 ```
 
+The live evidence path is sensor fusion: camera detections are primary, while audio, radar, Remote ID, thermal, weather, and camera-health signals corroborate or weaken a track. No single sensor can guarantee detection of every drone, especially small, occluded, distant, or low-noise aircraft.
+
 The edge box should process frames locally and send metadata rather than full video by default. The gateway stores short evidence clips only when a track becomes relevant. A multi-site control plane can aggregate incident metadata while retaining site-level video custody.
 
 ## Backend modules

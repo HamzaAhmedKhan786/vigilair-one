@@ -34,6 +34,10 @@ The backend adds `track_id`, centroid, speed, heading, source, and association m
 
 These values support corroboration and false-alarm reduction. They are not required for the first demo.
 
+## Acoustic features
+
+The audio adapter should send short windows rather than continuous raw audio by default. The backend accepts RMS level, noise floor, spectral centroid, rotor-band energy, harmonic score, and confidence. A low-noise drone may produce a weak acoustic confidence; that must lower certainty rather than silently becoming a positive detection.
+
 ## Evidence and retention
 
 Store a short pre/post-event clip, representative frames, JSON observations, model version, and a hash manifest. Default demo retention is 30 days; production retention must follow the operator’s legal and privacy policy.

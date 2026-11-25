@@ -4,10 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .replay import load_scenario
 from .risk_engine import assess_risk
-from .schemas import Camera, IncidentReport, Observation, OperatorDecision
+from .schemas import AudioObservation, Camera, IncidentReport, Observation, OperatorDecision, SensorFusionRequest
 from .agent import build_operator_brief
 from .hardware import observation_from_hardware
 from .tracker import TrackStore
+from .audio import extract_acoustic_features
+from .fusion import fuse_sensors
 
 settings = get_settings()
 app = FastAPI(title="VIGILAIR ONE API", version="0.1.0", description="Decision-support API; no physical-control interface.")
@@ -31,6 +33,15 @@ def ingest(observation: Observation):
 def ingest_hardware(payload: dict):
     observation = observation_from_hardware(payload)
     return ingest(observation)
+
+@app.post("/api/hardware/audio-features", response_model=AudioObservation)
+def audio_features(payload: dict):
+    features = extract_acoustic_features(payload["samples"], int(payload["sample_rate"]), float(payload.get("noise_floor_dbfs", -60)))
+    return AudioObservation(timestamp=payload["timestamp"], sensor_id=payload["sensor_id"], track_id=payload.get("track_id"), source=payload.get("source", "hardware-audio"), **features)
+
+@app.post("/api/fusion/evaluate")
+def evaluate_fusion(request: SensorFusionRequest):
+    return fuse_sensors(request)
 
 @app.post("/api/replay/reset")
 def replay_reset():
