@@ -1,0 +1,4 @@
+{"timestamp":"2026-11-25T20:58:00Z","camera_id":"CAM-01","frame_id":69600,"class_name":"drone","confidence":0.82,"bbox_xyxy":[190,250,240,290],"source":"synthetic-detector","model":"yolo11n-demo"}
+{"timestamp":"2026-11-25T21:00:00Z","camera_id":"CAM-02","frame_id":72000,"class_name":"drone","confidence":0.88,"bbox_xyxy":[430,270,490,318],"source":"synthetic-detector","model":"yolo11n-demo"}
+{"timestamp":"2026-11-25T21:01:12Z","camera_id":"CAM-02","frame_id":73464,"class_name":"drone","confidence":0.91,"bbox_xyxy":[690,310,755,360],"source":"synthetic-detector","model":"yolo11n-demo"}
+{"timestamp":"2026-11-25T21:00:40Z","camera_id":"CAM-04","frame_id":72480,"class_name":"bird","confidence":0.34,"bbox_xyxy":[100,520,145,555],"source":"synthetic-detector","model":"yolo11n-demo"}

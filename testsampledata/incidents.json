@@ -1,0 +1,10 @@
+{
+  "incident_id":"INC-VIG-042",
+  "site_id":"berlin-brandenburg-demo",
+  "track_id":"VIG-042",
+  "opened_at":"2026-11-25T20:58:00Z",
+  "risk":{"score":100,"level":"critical","reasons":["drone morphology classification","high object confidence","dwell time exceeded","restricted-zone proximity","directed movement"],"recommended_actions":["notify_police","preserve_evidence","allocate_camera","warn_staff","pause_zone"]},
+  "decisions":[{"timestamp":"2026-11-25T21:01:30Z","action":"notify_police","decision":"accepted","operator_id":"demo-operator","note":"Simulated police liaison notification"},{"timestamp":"2026-11-25T21:01:35Z","action":"warn_staff","decision":"modified","operator_id":"demo-operator","note":"Warn fuel-depot shift lead only"}],
+  "audit_events":[{"timestamp":"2026-11-25T20:58:00Z","event":"track_opened","actor":"policy-engine","target":"VIG-042"},{"timestamp":"2026-11-25T21:01:30Z","event":"operator_decision","actor":"demo-operator","target":"INC-VIG-042"}],
+  "evidence":[{"camera_id":"CAM-01","clip_uri":"synthetic://evidence/CAM-01/VIG-042-pre.mp4","sha256":"synthetic-prehash"},{"camera_id":"CAM-02","clip_uri":"synthetic://evidence/CAM-02/VIG-042-event.mp4","sha256":"synthetic-eventhash"}]
+}

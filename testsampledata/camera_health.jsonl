@@ -1,0 +1,4 @@
+{"timestamp":"2026-11-25T21:01:12Z","camera_id":"CAM-01","status":"online","fps_actual":11.8,"frames_dropped":2,"stream_latency_ms":83,"bitrate_kbps":2400,"storage_free_gb":118.4}
+{"timestamp":"2026-11-25T21:01:12Z","camera_id":"CAM-02","status":"online","fps_actual":12.0,"frames_dropped":0,"stream_latency_ms":71,"bitrate_kbps":2600,"storage_free_gb":118.4}
+{"timestamp":"2026-11-25T21:01:12Z","camera_id":"CAM-03","status":"degraded","fps_actual":8.4,"frames_dropped":21,"stream_latency_ms":240,"bitrate_kbps":900,"storage_free_gb":118.4}
+{"timestamp":"2026-11-25T21:01:12Z","camera_id":"CAM-04","status":"online","fps_actual":11.9,"frames_dropped":1,"stream_latency_ms":88,"bitrate_kbps":2300,"storage_free_gb":118.4}

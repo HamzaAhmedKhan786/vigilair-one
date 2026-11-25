@@ -1,0 +1,11 @@
+{
+  "dataset_id": "synthetic-night-site-001",
+  "license": "synthetic-demo",
+  "site_id": "berlin-brandenburg-demo",
+  "streams": [
+    {"camera_id":"CAM-01","uri":"synthetic://cam-01","kind":"video","codec":"h264","fps":12,"width":1920,"height":1080,"night":true,"calibration_id":"cal-cam-01-v1"},
+    {"camera_id":"CAM-02","uri":"synthetic://cam-02","kind":"video","codec":"h264","fps":12,"width":1920,"height":1080,"night":true,"calibration_id":"cal-cam-02-v1"},
+    {"camera_id":"CAM-03","uri":"synthetic://cam-03","kind":"video","codec":"h264","fps":12,"width":1920,"height":1080,"night":true,"calibration_id":"cal-cam-03-v1"},
+    {"camera_id":"CAM-04","uri":"synthetic://cam-04","kind":"video","codec":"h264","fps":12,"width":1920,"height":1080,"night":true,"calibration_id":"cal-cam-04-v1"}
+  ]
+}
