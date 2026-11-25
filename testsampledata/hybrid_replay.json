@@ -1,0 +1,11 @@
+{
+  "event_input": "simulated_events",
+  "vision_input": "synthetic_labels",
+  "windows": [
+    {"window_id":"sim-drone-motion","vision_label":"drone","vision_confidence":0.91,"event_times_ms":[1,2,3,14,15,16,40,41,42],"expected_activity":true},
+    {"window_id":"sim-bird-motion","vision_label":"bird","vision_confidence":0.84,"event_times_ms":[2,3,4,20,21,22],"expected_activity":true},
+    {"window_id":"sim-sparse-motion-miss","vision_label":"drone","vision_confidence":0.72,"event_times_ms":[10,55,120,210],"expected_activity":true},
+    {"window_id":"sim-motion-without-label","event_times_ms":[2,3,4,18,19,20],"expected_activity":true},
+    {"window_id":"sim-background","event_times_ms":[],"expected_activity":false}
+  ]
+}

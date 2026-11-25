@@ -39,6 +39,12 @@ The runner uses frame indexes divided by FPS, so use constant frame rate footage
 
 Experimental SNN outputs can use the same evaluator with `source: snn`, `weights_sha256`, and `input_kind` set to `recorded_events` or `simulated_events`. An SNN runtime and event data are needed to generate predictions.
 
+### Hybrid YOLO and SNN activity replay
+
+Open **Model evaluation** to run the bundled hybrid experiment, or run `python -m backend.hybrid_replay` from the repository root. The spiking branch runs a CPU leaky integrate-and-fire simulation on paired temporal windows. The console reports synthetic vision labels, simulated event counts, actual simulated spikes, and measured CPU compute time for the spiking step.
+
+Use `python -m backend.hybrid_replay path/to/paired-windows.json` with data shaped like `testsampledata/hybrid_replay.json`. Pair event windows and vision detections from the same time interval and image region before exporting them. Supply the YOLO class and confidence for that region and ordered relative event timestamps in milliseconds. Mark the input provenance explicitly. The evaluator accepts recorded event windows and YOLO prediction values, but does not ingest raw event-camera files or automatically align camera streams. Optional activity labels allow an activity agreement score. This experiment does not measure drone classification accuracy, sensor power, or end-to-end latency.
+
 Open **Video replay** in the console and select the original video and the version 1 replay JSON. Files are opened locally in the browser. The video must match the digest and metadata in the bundle. Boxes can include `track_id`, `camera_id`, and `observation_timestamp` to link to an existing observation in the selected site. Select a linked frame as evidence to include its reference in the incident JSON export. Raw video and the browser's evidence selection are not stored by the API.
 
 Operator decisions are stored in local SQLite at `DECISION_DB_PATH`. Reloading the same synthetic incident retrieves its history after restart. Track observations are still stored in memory.
@@ -69,6 +75,12 @@ curl -X POST http://localhost:8000/api/calibration/pixel-to-site -H "Content-Typ
 The console refreshes observations and regional history every five seconds. The site map draws observed positions and a dashed forecast for the newest metric observation when there are at least two observations at that site. The forecast projects the current speed and heading up to 30 seconds. For nonsynthetic observations, it is hidden when the newest position is more than 15 seconds old. Regional history displays reported associations, including candidates and rejections, without drawing an observed path through coverage gaps.
 
 The scenario contains a likely drone crossing cameras and a bird false alarm. The risk score is deliberately transparent and independent of any language model.
+
+## Site weather and local clock
+
+The console displays the selected site's local date and time and regional weather estimates from [Open-Meteo](https://open-meteo.com/). Set a site's latitude, longitude, and IANA timezone in `data/sites.json`. This sends the selected site's coordinates to Open-Meteo. The non-commercial hosted API requires no key. Set `WEATHER_ENABLED=false` in the backend `.env` to disable external requests and keep the clock visible.
+
+The API caches each site for 15 minutes and clearly labels stale data during provider outages. Provider validity time and retrieval time are displayed separately. Weather estimates are contextual and separate from on-site sensor measurements, incident timestamps, and the risk engine.
 
 ## Repository map
 

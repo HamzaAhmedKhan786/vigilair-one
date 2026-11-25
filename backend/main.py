@@ -10,6 +10,7 @@ from .hardware import observation_from_hardware
 from .tracker import TrackStore
 from .audio import extract_acoustic_features
 from .fusion import fuse_sensors
+from .hybrid_replay import FIXTURE as HYBRID_FIXTURE, evaluate as evaluate_hybrid, load_replay as load_hybrid_replay
 from .geometry import analyze_track
 from .resource_allocator import allocate
 from .calibration import load_calibrations
@@ -17,6 +18,7 @@ from .decision_engine import decision_packet
 from .decision_store import DecisionStore
 from .geospatial import evaluate_handoff, haversine_m
 from .multisite import GlobalTrackStore
+from .weather import WeatherService, WeatherUnavailable
 
 settings = get_settings()
 app = FastAPI(title="VIGILAIR ONE API", version="0.1.0", description="Decision-support API; no physical-control interface.")
@@ -25,6 +27,7 @@ store = TrackStore()
 decisions = DecisionStore(settings.resolve(settings.decision_db_path))
 calibrations = load_calibrations(settings.resolve(settings.calibration_path))
 site_registry = [Site.model_validate(item) for item in json.loads(settings.resolve(settings.sites_path).read_text(encoding="utf-8"))["sites"]]
+weather = WeatherService(site_registry)
 environment_events: list[EnvironmentObservation] = []
 global_tracks = GlobalTrackStore()
 
@@ -38,6 +41,19 @@ def cameras():
 
 @app.get("/api/sites", response_model=list[Site])
 def sites(): return site_registry
+
+
+@app.get("/api/sites/{site_id}/weather")
+def site_weather(site_id: str):
+    site = next((site for site in site_registry if site.site_id == site_id), None)
+    if site is None:
+        raise HTTPException(404, "Site not found")
+    if not settings.weather_enabled:
+        return {"site_id": site_id, "status": "disabled"}
+    try:
+        return weather.current(site)
+    except WeatherUnavailable as error:
+        raise HTTPException(503, "Regional weather is unavailable", headers={"Retry-After": "60"}) from error
 
 @app.post("/api/geospatial/distance")
 def geospatial_distance(points: list[GeoPoint]):
@@ -95,6 +111,11 @@ def latest_environment(): return environment_events[-50:]
 @app.post("/api/fusion/evaluate")
 def evaluate_fusion(request: SensorFusionRequest):
     return fuse_sensors(request)
+
+
+@app.get("/api/experiments/hybrid-replay")
+def hybrid_replay():
+    return evaluate_hybrid(load_hybrid_replay(HYBRID_FIXTURE))
 
 @app.post("/api/replay/reset")
 def replay_reset():

@@ -16,6 +16,21 @@
 .feed-box.bird { border-color: var(--green); }
 .queue-tags { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 7px; }
 .thermal-panel { margin-top: 12px; }
+.site-weather { display: flex; flex-wrap: wrap; gap: 14px 24px; margin-bottom: 12px; padding: 12px 15px; }
+.weather-clock { display: flex; gap: 8px; align-items: center; align-self: start; }
+.weather-clock time, .weather-fields strong { display: block; font-variant-numeric: tabular-nums; }
+.site-weather small { color: var(--muted); font-size: 11px; }
+.weather-clock time { margin-top: 3px; }
+.weather-readings { display: grid; gap: 7px; font-size: 12px; flex: 1 1 520px; min-width: 0; }
+.weather-title, .weather-fields { display: flex; align-items: center; gap: 8px 18px; flex-wrap: wrap; }
+.weather-title a { color: var(--cyan); }
+.weather-clock svg, .weather-title svg { color: var(--cyan); }
+.hybrid-panel { grid-column: 1 / -1; }
+.hybrid-summary { margin: 0; }
+.hybrid-results { margin: 12px 15px 0; overflow: auto; }
+.hybrid-results table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+.hybrid-results th, .hybrid-results td { padding: 9px; border-bottom: 1px solid var(--line); }
+.hybrid-results th { color: var(--muted); }
 .forecast-path { fill: none; stroke: #d7b9ff; stroke-width: 2.5px; stroke-dasharray: 7 5; vector-effect: non-scaling-stroke; }
 .forecast-key { color: #d7b9ff; }
 .regional-panel { margin-top: 12px; }

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     scenario_path: str = "data/scenario.json"
     calibration_path: str = "data/calibrations.json"
     sites_path: str = "data/sites.json"
+    weather_enabled: bool = True
     evidence_dir: str = "data/evidence"
     model_provider: str = "local"
     detector_model: str = "yolo11n.pt"
