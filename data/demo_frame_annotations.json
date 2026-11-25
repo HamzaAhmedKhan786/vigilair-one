@@ -1,0 +1,1 @@
+{"asset":"/demo/night-camera-synthetic.png","width":1672,"height":940,"synthetic":true,"annotations":[{"class_name":"drone","bbox_xyxy":[1460,160,1540,225]},{"class_name":"bird","bbox_xyxy":[175,190,250,265]}]}

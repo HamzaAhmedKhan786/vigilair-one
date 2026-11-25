@@ -10,6 +10,12 @@ class Detector:
         from ultralytics import YOLO
         self._model = YOLO(self.model_name)
 
+    @property
+    def class_names(self) -> dict[int, str]:
+        if self._model is None:
+            raise RuntimeError("Load the detector before reading class labels")
+        return dict(self._model.names)
+
     def detect(self, frame: Any) -> list[dict]:
         if self._model is None: self.load()
         results = self._model.predict(frame, device=self.device, conf=self.confidence, verbose=False)

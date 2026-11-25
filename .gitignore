@@ -4,6 +4,14 @@ dist/
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
+*.pt
+*.safetensors
+*.onnx
+*.key
+*.pem
+artifacts/
 data/evidence/
 data/*.db
 *.mp4

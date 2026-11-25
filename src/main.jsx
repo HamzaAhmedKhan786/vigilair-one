@@ -1,75 +1,132 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Activity, AlertTriangle, Camera, Check, ChevronRight, CircleDot, Download, Eye, Focus, Globe2, MapPin, Mic, Moon, Radio, ShieldCheck, Siren, Sun, X } from 'lucide-react'
+import { AlertTriangle, Camera, Check, ChevronDown, Clock3, Download, Eye, MapPin, Pause, Play, Radio, RefreshCw, ShieldCheck, X } from 'lucide-react'
+import { api } from './api'
+import { detectionStatus, visibleForecast } from './selectors.mjs'
+import { RegionalTracks } from './RegionalTracks'
+import { ThermalEvidence } from './ThermalEvidence'
+import { useConsoleData } from './useConsoleData'
+import { decisionPayload, demoFrame, demoZones, fallbackSites, fallbackCameras, latest, observationsForSite, pointFor, siteBounds, sortTracks } from './scenario'
 import './styles.css'
+import './console-layout.css'
 
-const initialTracks = [
-  { id: 'VIG-042', label: 'UAS / likely quadcopter', camera: 'CAM-02', zone: 'Fuel depot perimeter', risk: 86, status: 'Escalating', dwell: '03:12', speed: '4.8 m/s', direction: '→ restricted zone', points: '12 / 12' },
-  { id: 'VIG-038', label: 'Bird / low confidence', camera: 'CAM-04', zone: 'North service road', risk: 18, status: 'Review', dwell: '00:08', speed: '11.2 m/s', direction: '↗ away from site', points: '4 / 12' },
-]
-const initialSites = [{site_id:'berlin-brandenburg-demo',name:'Brandenburg Perimeter',latitude:52.3667,longitude:13.5033,status:'online'},{site_id:'berlin-east-demo',name:'Berlin East Infrastructure',latitude:52.4205,longitude:13.7012,status:'online'},{site_id:'potsdam-demo',name:'Potsdam Critical Site',latitude:52.3906,longitude:13.0645,status:'online'}]
+const TABS = ['Overview', 'Analytics', 'Evidence', 'Incident history', 'Model evaluation', 'System health']
+const time = value => value ? new Date(value).toLocaleTimeString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC' : '—'
+const label = value => value?.replaceAll('_', ' ') ?? '—'
+
+function Panel({ title, eyebrow, aside, children, className = '' }) {
+  return <section className={'panel ' + className}><div className="panel-heading"><div><small>{eyebrow}</small><h2>{title}</h2></div>{aside}</div>{children}</section>
+}
+function Badge({ children, tone = 'neutral' }) { return <span className={'badge ' + tone}>{children}</span> }
+function Metric({ label: name, value, tone }) { return <div className="metric"><small>{name}</small><strong className={tone || ''}>{value}</strong></div> }
+
+function SiteMap({ tracks, selectedId, selectedObservation, onSelectObservation, zones, forecast }) {
+  return <Panel className="map-panel" eyebrow="SYNTHETIC SCENARIO · SITE COORDINATES" title="Perimeter overview" aside={<Badge tone="cyan">Advisory view</Badge>}>
+    <div className="map-canvas" role="group" aria-label="Synthetic site map">
+      {zones.map(zone => {
+        const corners = zone.polygon_m.map(site_position_m => pointFor({ site_position_m }, siteBounds))
+        const left = Math.min(...corners.map(p => p.x)), top = Math.min(...corners.map(p => p.y))
+        const width = Math.max(...corners.map(p => p.x)) - left, height = Math.max(...corners.map(p => p.y)) - top
+        return <div key={zone.zone_id} className={'zone ' + (zone.severity === 'critical' ? 'restricted-zone' : 'fuel-zone')} style={{ left: left + '%', top: top + '%', width: width + '%', height: height + '%' }}>{zone.name}</div>
+      })}
+      <svg className="map-paths" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        {forecast && <polyline className="forecast-path" points={forecast.points.map(site_position_m => pointFor({ site_position_m }, siteBounds)).map(point => point.x + "," + point.y).join(" ")} /> }
+        {tracks.map(track => {
+          const points = track.observations.map(o => pointFor(o, siteBounds)).filter(Boolean)
+          return <polyline key={track.track_id} points={points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={'var(--' + (detectionStatus(latest(track)?.class_name).tone === 'neutral' ? 'muted' : detectionStatus(latest(track)?.class_name).tone) + ')'} strokeWidth=".65" strokeDasharray={track.track_id === selectedId ? 'none' : '1.3 1.3'} />
+        })}
+      </svg>
+      {tracks.map(track => track.observations.map((observation, index) => {
+        const point = pointFor(observation, siteBounds); if (!point) return null
+        return <button type="button" key={track.track_id + index} className={'map-point ' + ('tone-' + detectionStatus(observation.class_name, observation.confidence).tone) + (selectedObservation?.timestamp === observation.timestamp && selectedId === track.track_id ? ' active' : '')} style={{ left: `${point.x}%`, top: `${point.y}%` }} aria-label={`Inspect ${track.track_id} observation at ${time(observation.timestamp)}`} onClick={() => onSelectObservation(track.track_id, index)}><span>{index === track.observations.length - 1 ? track.track_id : ''}</span></button>
+      }))}
+      <div className="map-scale">LOCAL SITE METERS · 0–220 E / 0–230 N</div>
+    </div>
+    <div className="legend"><span><i className="swatch amber" /> drone candidate</span><span><i className="swatch green" /> wildlife</span><span><i className="swatch cyan" /> other airborne objects</span><span>Solid · observed</span><span className="forecast-key">{forecast ? "Dashed · " + forecast.horizon + " s " + (forecast.synthetic ? "replay estimate" : "estimated path") : "Forecast unavailable for this observation"}</span></div>
+  </Panel>
+}
+
+function IncidentQueue({ tracks, selectedId, onInspect, onDecision, busy }) {
+  return <Panel className="queue-panel" eyebrow="SORTED BY RISK" title="Incident queue" aside={<Badge tone="amber">{tracks.length} tracks</Badge>}>
+    <div className="queue-list">{tracks.length ? tracks.map(track => {
+      const observation = latest(track)
+      return <article className={'queue-item ' + (selectedId === track.track_id ? 'selected' : '')} key={track.track_id}>
+        <div className="queue-title"><strong>{track.track_id} · {observation?.class_name?.toUpperCase() || 'UNKNOWN'}</strong><Badge tone={track.risk.score >= 50 ? 'amber' : 'cyan'}>{track.risk.score}/100</Badge></div>
+        <div className="queue-tags"><Badge tone={detectionStatus(observation?.class_name, observation?.confidence).tone}>{detectionStatus(observation?.class_name, observation?.confidence).label}</Badge></div>
+        <p>{track.risk.reasons?.slice(0, 2).join(' · ') || 'No risk reasons available'}</p><div className="queue-meta">{observation?.camera_id} · {time(observation?.timestamp)} · {Math.round((observation?.confidence || 0) * 100)}% confidence</div>
+        <div className="queue-actions"><button onClick={() => onInspect(track.track_id)}><Eye size={13}/> Inspect</button><button disabled={busy} onClick={() => onDecision(track, 'accepted')}>Accept</button><button disabled={busy} onClick={() => onDecision(track, 'rejected')}>Reject</button><button disabled={busy} onClick={() => onDecision(track, 'modified')}>Modify</button></div>
+      </article>
+    }) : <p className="empty">No tracks for this site.</p>}</div>
+  </Panel>
+}
+
+function CameraReplay({ observation, cameras, playing, setPlaying, frameIndex, setFrameIndex, track }) {
+  const points = track?.observations || []
+  return <Panel eyebrow="ILLUSTRATIVE FRAME · SYNTHETIC" title="Camera replay" aside={<Badge tone="cyan">{observation?.camera_id || 'No camera'}</Badge>}>
+    <div className="replay-body">
+    <div className="feed"><img src={demoFrame.asset} alt="Synthetic night CCTV scene with a drone and bird" /><span className="feed-stamp">{time(observation?.timestamp)} · SYNTHETIC</span>{observation && demoFrame.annotations.filter(item => item.class_name === observation.class_name).map(item => <span key={item.class_name} className={'feed-box ' + (item.class_name === 'bird' ? 'bird' : 'drone')} style={{ left: `${item.bbox_xyxy[0] / demoFrame.width * 100}%`, top: `${item.bbox_xyxy[1] / demoFrame.height * 100}%`, width: `${(item.bbox_xyxy[2] - item.bbox_xyxy[0]) / demoFrame.width * 100}%`, height: `${(item.bbox_xyxy[3] - item.bbox_xyxy[1]) / demoFrame.height * 100}%` }}>{track?.track_id} · {Math.round(observation.confidence * 100)}%</span>)}</div>
+    <div className="replay-details">
+    <div className="transport"><button onClick={() => { setPlaying(!playing) }} disabled={points.length < 2} aria-label={playing ? 'Pause replay' : 'Play replay'}>{playing ? <Pause size={16}/> : <Play size={16}/>}</button><input aria-label="Replay observation" type="range" min="0" max={Math.max(0, points.length - 1)} value={Math.min(frameIndex, Math.max(0, points.length - 1))} onChange={event => { clearSelectedObservation(); setPlaying(false); setFrameIndex(Number(event.target.value)) }}/><span>{points.length ? Math.min(frameIndex + 1, points.length) : 0}/{points.length}</span></div>
+    <div className="detail-grid"><Metric label="CLASS" value={observation?.class_name || '—'}/><Metric label="CONFIDENCE" value={observation ? `${Math.round(observation.confidence * 100)}%` : '—'}/><Metric label="CAMERA" value={observation?.camera_id || '—'}/><Metric label="SOURCE" value={observation?.source || '—'}/></div>
+    <div className="detail-grid">
+      <Metric label="SPEED" value={observation?.speed_mps != null ? observation.speed_mps + " m/s" : "—"}/>
+      <Metric label="HEADING" value={observation?.heading_deg != null ? observation.heading_deg + "°" : "—"}/>
+      <Metric label="ALTITUDE" value={observation?.altitude_m != null ? observation.altitude_m + " m" : "—"}/>
+      <Metric label="LAT / LON" value={observation?.latitude != null && observation?.longitude != null ? observation.latitude.toFixed(5) + ", " + observation.longitude.toFixed(5) : "—"}/>
+    </div>
+    <div className="camera-availability">{cameras.map(camera => <span key={camera.camera_id} className={camera.camera_id === observation?.camera_id ? 'current' : ''}><Camera size={12}/>{camera.camera_id} <i>{camera.status}</i></span>)}</div>
+    </div></div>
+  </Panel>
+}
+
+function Review({ track, incident, analytics, allocation, onDecision, busy, notice }) {
+  return <Panel eyebrow="HUMAN REVIEW REQUIRED" title="Operator decision" aside={<ShieldCheck size={18} color="var(--cyan)"/>}>
+    <div className="review-body"><h3>{track?.track_id || 'Select a track'}</h3><p>{track?.risk?.reasons?.join(' · ') || 'No assessment available.'}</p>
+      <div className="decision-actions"><button className="primary" disabled={!track || busy} onClick={() => onDecision(track, 'accepted')}><Check size={14}/> Accept</button><button disabled={!track || busy} onClick={() => onDecision(track, 'modified')}>Modify</button><button disabled={!track || busy} onClick={() => onDecision(track, 'rejected')}><X size={14}/> Reject</button></div>
+      <div className="review-metrics"><Metric label="PATH" value={analytics ? `${analytics.path_length_m} m` : 'Unavailable'}/><Metric label="ZONE DISTANCE" value={analytics?.distance_to_restricted_zone_m != null ? `${analytics.distance_to_restricted_zone_m} m` : 'Unavailable'}/><Metric label="BEHAVIOR" value={analytics?.behaviors?.map(label).join(', ') || 'Unavailable'}/></div>
+      <div className="recommendations"><small>RECOMMENDED · SIMULATED</small><p>{track?.risk?.recommended_actions?.map(label).join(' · ') || 'No recommendations'}</p><p>{allocation?.allocations?.map(a => a.resource_id).join(' · ') || 'Observation resources unavailable'}</p></div>
+      {notice && <p className="notice" role="status">{notice}</p>}<small className="muted">Logged decisions: {incident?.decisions?.length ?? 'unavailable'} · no physical control link</small>
+    </div>
+  </Panel>
+}
+
+function Secondary({ tab, track, analytics, incident, cameras, status, mode, updatedAt, onExport }) {
+  if (tab === 'Analytics') return <div className="secondary-grid"><Panel eyebrow="TRACK KINEMATICS" title="Trajectory analytics"><div className="detail-grid large"><Metric label="PATH LENGTH" value={analytics ? `${analytics.path_length_m} m` : 'Unavailable'}/><Metric label="DISPLACEMENT" value={analytics ? `${analytics.displacement_m} m` : 'Unavailable'}/><Metric label="SPEED" value={analytics ? `${analytics.current_speed_mps} m/s` : 'Unavailable'}/><Metric label="HEADING" value={analytics ? `${analytics.heading_deg}°` : 'Unavailable'}/><Metric label="LOITER / DWELL" value={analytics ? `${analytics.dwell_seconds} s` : 'Unavailable'}/><Metric label="ZONE ETA" value={analytics?.eta_to_restricted_zone_s != null ? `${analytics.eta_to_restricted_zone_s} s` : 'Unavailable'}/></div><p className="muted padded">Metrics use synthetic site coordinates. Camera calibration and uncertainty need field validation.</p></Panel><Panel eyebrow="SENSOR FUSION" title="Evidence sources"><p className="padded">Video classification and confidence are available in the replay scenario. Acoustic, radar, thermal and Remote ID fixtures exist but are not synchronized into a measured fused score here.</p></Panel></div>
+  if (tab === 'Evidence') return <Panel eyebrow="TIMESTAMPED HANDOFF" title="Evidence package" aside={<button disabled={!incident} onClick={onExport}><Download size={14}/> Export JSON</button>}><pre>{JSON.stringify(incident || { state: 'Incident unavailable' }, null, 2)}</pre></Panel>
+  if (tab === 'Incident history') return <Panel eyebrow="OPERATOR AUDIT" title="Decision history">{incident?.decisions?.length ? incident.decisions.map((d, i) => <div className="history-row" key={i}><Badge tone="cyan">{d.decision}</Badge><span>{label(d.action)}</span><span>{time(d.decided_at)}</span><span>{d.note}</span></div>) : <p className="empty">No recorded decisions for this track.</p>}</Panel>
+  if (tab === 'Model evaluation') return <div className="secondary-grid"><Panel eyebrow="DETECTOR OUTPUT" title="YOLO / vision results"><p className="padded">The synthetic scenario contains labeled detection confidence. A trained detector has not been run on this image.</p><div className="detail-grid"><Metric label="SCENARIO CLASS" value={latest(track)?.class_name || '—'}/><Metric label="SCENARIO CONFIDENCE" value={latest(track) ? `${Math.round(latest(track).confidence * 100)}%` : '—'}/><Metric label="PRECISION / RECALL" value="Unavailable"/><Metric label="MODEL VERSION" value="Unavailable"/></div></Panel><Panel eyebrow="EXPERIMENTAL · NOT INTEGRATED" title="SNN evaluation"><p className="padded">No SNN predictions or benchmarks are available. Reserve this panel for future event stream experiments with measured latency, power and accuracy.</p></Panel></div>
+  return <Panel eyebrow="SITE TELEMETRY" title="System health"><div className="detail-grid large"><Metric label="API" value={status}/><Metric label="DATA MODE" value={mode}/><Metric label="LAST SYNC" value={updatedAt ? new Date(updatedAt).toLocaleTimeString() : 'Never'}/><Metric label="CAMERAS CONFIGURED" value={cameras.length}/></div><p className="padded muted">Camera availability comes from configuration. Live stream health and latency are unavailable until hardware is connected.</p></Panel>
+}
 
 function App() {
-  const [tracks, setTracks] = useState(initialTracks)
-  const [selected, setSelected] = useState('VIG-042')
-  const [banner, setBanner] = useState('Live simulation · 4 camera feeds · 12 FPS edge pipeline')
+  const consoleData = useConsoleData()
+  const [siteId, setSiteId] = useState('berlin-brandenburg-demo')
+  const [selectedId, setSelectedId] = useState('VIG-042')
+  const [tab, setTab] = useState('Overview')
+  const [frameIndex, setFrameIndex] = useState(null)
+  const [playing, setPlaying] = useState(false)
+  const [incident, setIncident] = useState(null)
   const [analytics, setAnalytics] = useState(null)
   const [allocation, setAllocation] = useState(null)
-  const [sites, setSites] = useState(initialSites)
-  const active = useMemo(() => tracks.find(t => t.id === selected) ?? tracks[0], [tracks, selected])
-
-  useEffect(() => {
-    fetch('http://localhost:8000/api/replay/reset', { method: 'POST' })
-      .then(() => fetch('http://localhost:8000/api/tracks'))
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(items => setTracks(items.map(item => {
-        const last = item.observations[item.observations.length - 1]
-        return { id: item.track_id, label: `${last.class_name} / live backend`, camera: last.camera_id, zone: item.risk.level === 'critical' ? 'Restricted-zone proximity' : 'North service road', risk: item.risk.score, status: item.risk.level === 'critical' ? 'Escalating' : 'Review', dwell: 'replay', speed: `${last.speed_mps} m/s`, direction: `heading ${last.heading_deg}°`, points: `${item.observations.length} observations` }
-      })))
-      .then(() => setBanner('Backend replay connected · live API data'))
-      .catch(() => setBanner('Demo mode · backend unavailable, using local simulation'))
-  }, [])
-
-  useEffect(() => { fetch('http://localhost:8000/api/sites').then(r => r.ok ? r.json() : Promise.reject()).then(setSites).catch(() => {}) }, [])
-
-  useEffect(() => {
-    Promise.all([fetch(`http://localhost:8000/api/tracks/${selected}/analytics`).then(r => r.ok ? r.json() : null), fetch(`http://localhost:8000/api/tracks/${selected}/resource-allocation`).then(r => r.ok ? r.json() : null)])
-      .then(([pathData, resourceData]) => { if (pathData) setAnalytics(pathData); if (resourceData) setAllocation(resourceData) })
-      .catch(() => {})
-  }, [selected, tracks])
-
-  const act = (message, id = selected) => {
-    setBanner(message)
-    setTracks(items => items.map(t => t.id === id ? { ...t, status: 'Operator action logged' } : t))
-    fetch(`http://localhost:8000/api/tracks/${id}/decisions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: message.includes('police') ? 'notify_police' : 'preserve_evidence', decision: message.includes('rejected') ? 'rejected' : message.includes('modified') ? 'modified' : 'accepted', operator_id: 'demo-operator', note: message }) }).catch(() => {})
-  }
-
-  const safeControl = (message) => setBanner(`${message} · observation-only control logged`)
-
-  const exportReport = () => {
-    const report = `VIGILAIR ONE INCIDENT REPORT\nTrack: ${active.id}\nRisk: ${active.risk}/100\nZone: ${active.zone}\nDwell: ${active.dwell}\nRecommendation: Notify police liaison; pause affected zone; preserve evidence.\nOperator decision: Accepted\nGenerated: ${new Date().toISOString()}`
-    const url = URL.createObjectURL(new Blob([report], { type: 'text/plain' }))
-    const a = document.createElement('a'); a.href = url; a.download = `${active.id}-incident-report.txt`; a.click(); URL.revokeObjectURL(url)
-    setBanner('Timestamped incident report exported')
-  }
-
-  return <div className="app-shell">
-    <header className="topbar"><div className="brand"><div className="brand-mark">V</div><div><div className="brand-name">VIGILAIR<span>ONE</span></div><div className="tagline">NEUROMORPHIC AERIAL INTELLIGENCE</div></div></div><div className="top-status"><span className="pulse" /> SYSTEM ONLINE <span className="divider" /> SITE: BERLIN-BRANDENBURG <span className="divider" /> <span className="muted">25 NOV 2026 · 21:14:08 CET</span></div></header>
-    <main>
-      <section className="hero"><div><div className="eyebrow">OPERATIONS CONSOLE / DECISION SUPPORT ONLY</div><h1>Continuous awareness<br/><em>across every camera.</em></h1><p>Track, explain, and coordinate a response to aerial threats before a single frame becomes an incident.</p></div><div className="hero-meta"><div className="meta-card"><span>ACTIVE TRACKS</span><strong>02</strong></div><div className="meta-card"><span>CAMERAS</span><strong>04</strong></div><div className="meta-card"><span>EDGE LATENCY</span><strong>84<span>ms</span></strong></div></div></section>
-      <section className="live-layout"><div className="panel live-feed-panel"><div className="panel-head"><div><div className="eyebrow">CAM-02 / LIVE DEMO FRAME</div><h2>Night perimeter detection</h2></div><span className="live-chip"><span className="pulse"/> SYNTHETIC LIVE</span></div><div className="camera-frame"><img src="/demo/night-camera-synthetic.png" alt="Synthetic night security camera frame with a drone and bird"/><div className="detection-box drone-box"><span>VIG-042 · DRONE 91%</span></div><div className="detection-box bird-box"><span>VIG-038 · BIRD 34%</span></div><div className="frame-crosshair"/><div className="frame-time">CAM-02 · 21:01:12.084 UTC · FRAME 073464</div></div><div className="sensor-ribbon"><span><Moon size={13}/> IR ASSIST ON</span><span><Sun size={13}/> 0.8 LUX</span><span><Mic size={13}/> ROTOR 62%</span><span><Activity size={13}/> MOTION 87%</span><span><Eye size={13}/> VISIBILITY 4.2 KM</span></div></div><div className="panel fleet-panel"><div className="panel-head"><div><div className="eyebrow">MULTI-SITE FLEET</div><h2>Regional continuity</h2></div><Globe2 size={18}/></div><div className="site-list">{sites.map((site,index)=><div className={`site-row ${index===0?'active':''}`} key={site.site_id}><span className="site-index">0{index+1}</span><span><strong>{site.name}</strong><small>{site.latitude.toFixed(4)}° N · {site.longitude.toFixed(4)}° E</small></span><b>{site.status}</b></div>)}</div><div className="handoff-card"><span>GLOBAL TRACK</span><strong>GLOBAL-042</strong><small>Brandenburg → Berlin East candidate</small><div><i style={{width:'68%'}}/>68% handoff confidence</div></div></div></section>
-      <div className="grid-layout">
-        <section className="panel map-panel"><div className="panel-head"><div><div className="eyebrow">SITE OVERVIEW</div><h2>Brandenburg perimeter</h2></div><span className="live-chip"><Radio size={13}/> LIVE SIMULATION</span></div><div className="map"><div className="map-grid"/><div className="restricted"><span>RESTRICTED ZONE</span></div><div className="depot"><span>FUEL DEPOT</span></div><div className="route route-a"/><div className="route route-b"/>{tracks.map((t, i) => <button key={t.id} className={`track-dot track-${i} ${selected === t.id ? 'selected' : ''}`} onClick={() => setSelected(t.id)}><span>{t.id}</span></button>)}<div className="camera-pin pin-1"><Camera size={12}/> 01</div><div className="camera-pin pin-2"><Camera size={12}/> 02</div><div className="camera-pin pin-3"><Camera size={12}/> 03</div><div className="camera-pin pin-4"><Camera size={12}/> 04</div><div className="map-legend"><span><i className="dot red"/> high risk</span><span><i className="dot amber"/> review</span><span><i className="line"/> predicted path</span></div></div><div className="map-foot"><span><MapPin size={14}/> 52.3667° N, 13.5033° E</span><span>4 synchronized streams <ChevronRight size={14}/></span></div></section>
-        <section className="panel alert-panel"><div className="panel-head"><div><div className="eyebrow">RISK INTELLIGENCE</div><h2>Why this matters</h2></div><div className="risk-score"><strong>{active.risk}</strong><span>/ 100 RISK</span></div></div><div className="risk-bar"><span style={{width:`${active.risk}%`}}/></div><div className="signal-list"><Signal title="Dwell time" value={active.dwell} detail="threshold exceeded" high/><Signal title="Trajectory" value={active.direction} detail="restricted zone vector" high/><Signal title="Object confidence" value={active.id === 'VIG-042' ? '91%' : '34%'} detail={active.id === 'VIG-042' ? 'drone morphology' : 'bird-like motion'}/></div><div className="explain"><Activity size={16}/><span>Risk is explainable: dwell time + directional change + geofence proximity. No autonomous action is taken.</span></div></section>
-      </div>
-      <section className="panel tracks-panel"><div className="panel-head"><div><div className="eyebrow">TRACK MANAGER</div><h2>Persistent targets</h2></div><div className="stream-status"><CircleDot size={14}/> ingesting 4 feeds</div></div><div className="track-table"><div className="table-row table-head"><span>TRACK</span><span>CLASSIFICATION</span><span>CAMERA / ZONE</span><span>BEHAVIOUR</span><span>STATUS</span></div>{tracks.map(t => <button className={`table-row ${selected === t.id ? 'active' : ''}`} key={t.id} onClick={() => setSelected(t.id)}><span className="track-name"><span className={`track-icon ${t.risk > 50 ? 'red-bg' : 'amber-bg'}`}><Siren size={14}/></span><strong>{t.id}</strong></span><span>{t.label}</span><span>{t.camera}<small>{t.zone}</small></span><span><strong>{t.dwell}</strong> dwell · {t.speed}<small>{t.direction}</small></span><span><b className={t.risk > 50 ? 'status-red' : 'status-amber'}>{t.status}</b></span></button>)}</div></section>
-      <section className="panel fusion-panel"><div className="panel-head"><div><div className="eyebrow">MULTI-SENSOR CORROBORATION</div><h2>Evidence confidence</h2></div><span className="live-chip"><span className="pulse"/> FUSION ACTIVE</span></div><div className="fusion-grid"><div className="fusion-card strong"><span>CAMERA VISION</span><strong>{active.id === 'VIG-042' ? '91%' : '34%'}</strong><small>CAM-02 · morphology + trajectory</small></div><div className="fusion-card"><span>ACOUSTIC</span><strong>{active.id === 'VIG-042' ? '62%' : '18%'}</strong><small>MIC-ARRAY-01 · rotor-band evidence</small></div><div className="fusion-card"><span>RADAR / RID</span><strong>{active.id === 'VIG-042' ? '86%' : '—'}</strong><small>{active.id === 'VIG-042' ? 'corroborated · 184 m range' : 'no match available'}</small></div><div className="fusion-card"><span>DATA QUALITY</span><strong>94%</strong><small>3 online · 1 degraded stream</small></div></div><div className="fusion-foot"><span>Low-noise mode: weak audio is down-weighted, not treated as proof.</span><span>fused confidence <b>{active.id === 'VIG-042' ? '88%' : '34%'}</b></span></div></section>
-      <section className="analytics-layout"><div className="panel path-panel"><div className="panel-head"><div><div className="eyebrow">TRAJECTORY ANALYTICS</div><h2>Path, distance and prediction</h2></div><span className="review-chip">SITE METERS</span></div><div className="metric-strip"><Metric label="PATH LENGTH" value={`${analytics?.path_length_m ?? 99.7} m`}/><Metric label="ZONE DISTANCE" value={`${analytics?.distance_to_restricted_zone_m ?? 4.5} m`} danger/><Metric label="ETA" value={`${analytics?.eta_to_restricted_zone_s ?? 0.9} s`} danger/><Metric label="TURN RATE" value={`${analytics?.turn_rate_deg_s ?? 7.63}°/s`}/></div><div className="path-viz"><svg viewBox="0 0 720 170" role="img" aria-label="Observed and predicted target path"><defs><linearGradient id="pathGlow"><stop stopColor="#b4f48b"/><stop offset="1" stopColor="#e56863"/></linearGradient></defs><path d="M30 135 C170 125 210 70 340 95 S520 85 675 28" fill="none" stroke="#273b35" strokeWidth="14"/><path d="M30 135 C170 125 210 70 340 95 S470 91 520 75" fill="none" stroke="url(#pathGlow)" strokeWidth="3"/><path d="M520 75 Q600 55 675 28" fill="none" stroke="#e56863" strokeWidth="2" strokeDasharray="7 7"/><circle cx="520" cy="75" r="7" fill="#e56863"/><rect x="635" y="8" width="70" height="50" fill="#e5686315" stroke="#e56863" strokeDasharray="4 4"/><text x="644" y="38" fill="#e56863" fontSize="10">RESTRICTED</text></svg><div className="path-legend"><span><i className="line"/> observed path</span><span><i className="dash"/> 30s prediction</span><span>heading {analytics?.heading_deg ?? 122.9}°</span></div></div></div><div className="panel allocation-panel"><div className="panel-head"><div><div className="eyebrow">SIMULATED ALLOCATION</div><h2>Observation resources</h2></div><ShieldCheck size={18}/></div><div className="allocation-list">{(allocation?.allocations ?? [{resource_id:'CAM-PTZ-01',capability:'visual follow',kind:'camera'},{resource_id:'THERMAL-01',capability:'thermal confirmation',kind:'camera'},{resource_id:'OP-02',capability:'secondary review',kind:'operator'},{resource_id:'REC-01',capability:'evidence capture',kind:'recorder'}]).map(item => <div key={item.resource_id}><span><CircleDot size={12}/>{item.resource_id}</span><strong>{item.capability}</strong><small>{item.kind} · simulated</small></div>)}</div><div className="control-notice"><ShieldCheck size={15}/> Allocates cameras, recording and human review only—never weapons or interceptors.</div></div></section>
-      <section className="bottom-grid"><div className="panel actions-panel"><div className="panel-head"><div><div className="eyebrow">HUMAN-IN-THE-LOOP</div><h2>Recommended response</h2></div><span className="review-chip">REVIEW REQUIRED</span></div><div className="recommendation"><div className="recommendation-icon"><ShieldCheck size={22}/></div><div><strong>Escalate to site security lead</strong><p>Notify the police liaison, pause operations in the affected zone, and preserve the camera evidence package.</p><div className="reason-tags"><span>+ high dwell</span><span>+ restricted vector</span><span>+ high confidence</span></div></div></div><div className="action-row"><button className="primary" onClick={() => act('Recommendation accepted · police liaison notification simulated')}><Check size={16}/> ACCEPT & LOG</button><button onClick={() => act('Recommendation modified · site security lead selected')}><ChevronRight size={16}/> MODIFY</button><button onClick={() => act('Recommendation rejected by operator')}><X size={16}/> REJECT</button></div></div><div className="panel evidence-panel"><div className="panel-head"><div><div className="eyebrow">EVIDENCE & HANDOFF</div><h2>Incident package</h2></div><Download size={18}/></div><div className="evidence-items"><div><span>TRACK PATH</span><strong>12 observations · 03:12</strong></div><div><span>CAMERA CLIPS</span><strong>CAM-01 → CAM-02 → CAM-03</strong></div><div><span>AUDIT TRAIL</span><strong>Operator review required</strong></div></div><button className="export" onClick={exportReport}><Download size={15}/> EXPORT TIMESTAMPED REPORT</button></div></section>
-      <section className="panel control-panel"><div className="panel-head"><div><div className="eyebrow">SAFE OBSERVATION CONTROLS</div><h2>Track {active.id}</h2></div><span className="review-chip">NO PHYSICAL CONTROL LINK</span></div><div className="safe-controls"><button onClick={() => safeControl(`Focused ${active.camera} feed`)}><Focus size={16}/> FOCUS CAMERA</button><button onClick={() => safeControl('Evidence replay queued')}><Eye size={16}/> REPLAY EVIDENCE</button><button onClick={() => safeControl('Operator summary requested')}><Activity size={16}/> REQUEST SUMMARY</button><button onClick={() => safeControl('Track annotation saved')}><MapPin size={16}/> ANNOTATE TRACK</button></div><div className="control-notice"><ShieldCheck size={15}/> Monitoring and coordination only. The app cannot pilot, redirect, disable, intercept, or physically respond to a drone.</div></section>
-      </main><footer><span>{banner}</span><span><span className="pulse"/> policy engine ready · no physical control link</span></footer>
-  </div>
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
+  const tracks = useMemo(() => sortTracks(observationsForSite(consoleData.tracks, siteId)), [consoleData.tracks, siteId])
+  const track = tracks.find(t => t.track_id === selectedId) || tracks[0]
+  const observation = (frameIndex == null ? null : track?.observations[frameIndex]) || latest(track)
+  const replayIndex = frameIndex ?? Math.max(0, (track?.observations.length ?? 1) - 1)
+  const forecast = visibleForecast(analytics, observation, consoleData.status === "connected")
+  const selectObservation = (id, index) => { setSelectedId(id); setFrameIndex(index); setPlaying(false) }
+  useEffect(() => { if (!playing || !track) return; const timer = setInterval(() => setFrameIndex(index => ((index ?? -1) + 1) % track.observations.length), 900); return () => clearInterval(timer) }, [playing, track])
+  useEffect(() => { if (consoleData.status !== 'connected' || !track) { setIncident(null); setAnalytics(null); setAllocation(null); return }; let active = true; Promise.allSettled([api.incident(track.track_id), api.analytics(track.track_id, siteId), api.allocation(track.track_id)]).then(results => { if (!active) return; setIncident(results[0].status === 'fulfilled' ? results[0].value : null); setAnalytics(results[1].status === 'fulfilled' ? results[1].value : null); setAllocation(results[2].status === 'fulfilled' ? results[2].value : null) }); return () => { active = false } }, [track?.track_id, siteId, consoleData.status, consoleData.updatedAt])
+  const inspect = id => { selectObservation(id, Math.max(0, (tracks.find(item => item.track_id === id)?.observations.length ?? 1) - 1)); setTab('Overview'); setNotice('') }
+  const decide = async (target, decision) => { const note = decision === 'modified' ? window.prompt('Describe the modified recommendation (saved to the audit log):') : ''; if (decision === 'modified' && !note?.trim()) return; const action = target.risk.recommended_actions?.[0] || 'preserve_evidence'; setBusy(true); try { await api.decide(target.track_id, decisionPayload(decision, action, note)); setNotice(`${decision} decision recorded for ${target.track_id}`); if (target.track_id === track?.track_id) setIncident(await api.incident(target.track_id)) } catch (error) { setNotice(`Decision was not recorded: ${error.message}. Connect the API and load replay.`) } finally { setBusy(false) } }
+  const exportReport = () => { if (!incident) return; const blob = new Blob([JSON.stringify(incident, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `${incident.incident_id}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000) }
+  return <div className="app-shell"><header className="topbar"><div className="brand"><span className="brand-mark">V</span><div><strong>VIGILAIR<span>ONE</span></strong><small>Beyond Detection. Continuous Awareness.</small></div></div><div className="topbar-right"><Badge tone={consoleData.status === 'connected' ? 'green' : 'amber'}><Radio size={12}/>{consoleData.status}</Badge><span>DECISION SUPPORT ONLY</span></div></header>
+    <main className="workspace"><div className="toolbar"><div className="toolbar-title"><small>OPERATIONS CONSOLE</small><h1>Regional awareness</h1></div><label className="site-select"><MapPin size={15}/><select aria-label="Select site" value={siteId} onChange={event => (setSiteId(event.target.value), selectObservation(null, null))}>{consoleData.sites.map(site => <option key={site.site_id} value={site.site_id}>{site.name}</option>)}</select><ChevronDown size={14}/></label><Badge tone="cyan">{consoleData.mode.toUpperCase()}</Badge><span className="toolbar-stat"><Camera size={15}/>{consoleData.cameras.filter(c => c.status === 'online').length}/{consoleData.cameras.length} cameras configured</span><button onClick={() => consoleData.refresh()} aria-label="Refresh data"><RefreshCw size={15}/></button><button className="replay-reset" onClick={() => consoleData.reset().then(() => setNotice('Synthetic replay loaded')).catch(e => setNotice(`Replay unavailable: ${e.message}`))}><Play size={14}/> Load replay</button></div>
+      {consoleData.status !== 'connected' && <div className="state-banner" role="status"><AlertTriangle size={15}/>{consoleData.status === 'loading' ? 'Connecting to API…' : consoleData.status === 'stale' ? 'API data is stale. Last known data shown.' : 'API disconnected. Synthetic local scenario shown; decisions cannot be recorded.'}{consoleData.error && <span>{consoleData.error}</span>}</div>}
+      <nav className="tabs" aria-label="Console sections">{TABS.map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)} aria-current={tab === item ? 'page' : undefined}>{item}</button>)}</nav>
+      {tab === 'Overview' ? <><div className="primary-grid"><SiteMap forecast={forecast} tracks={tracks} selectedId={track?.track_id} selectedObservation={observation} onSelectObservation={selectObservation} zones={siteId === fallbackSites[0].site_id ? demoZones : []}/><IncidentQueue tracks={tracks} selectedId={track?.track_id} onInspect={inspect} onDecision={decide} busy={busy}/></div><div className="lower-grid"><CameraReplay observation={observation} track={track} cameras={consoleData.cameras.length ? consoleData.cameras : fallbackCameras} playing={playing} setPlaying={setPlaying} frameIndex={replayIndex} setFrameIndex={setFrameIndex}/><Review track={track} incident={incident} analytics={analytics} allocation={allocation} onDecision={decide} busy={busy} notice={notice}/></div><RegionalTracks sites={consoleData.sites} siteId={siteId} localTrackId={track?.track_id} status={consoleData.status} updatedAt={consoleData.updatedAt} onInspectSite={(site, id) => { setSiteId(site); selectObservation(id, null) }}/><ThermalEvidence observation={observation}/></> : <Secondary tab={tab} track={track} analytics={analytics} incident={incident} cameras={consoleData.cameras} status={consoleData.status} mode={consoleData.mode} updatedAt={consoleData.updatedAt} onExport={exportReport}/>}
+      <footer><span><ShieldCheck size={14}/> Advisory only · human review required</span><span><Clock3 size={14}/> {consoleData.updatedAt ? `Updated ${new Date(consoleData.updatedAt).toLocaleTimeString()}` : 'Local synthetic scenario'}</span></footer>
+    </main></div>
 }
-function Signal({title,value,detail,high}) { return <div className="signal"><span className="signal-title">{title}</span><strong className={high ? 'high' : ''}>{value}</strong><small>{detail}</small></div> }
-function Metric({label,value,danger}) { return <div className="metric"><span>{label}</span><strong className={danger ? 'danger' : ''}>{value}</strong></div> }
 createRoot(document.getElementById('root')).render(<App />)

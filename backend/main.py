@@ -109,11 +109,26 @@ def tracks():
     return [{"track_id": track_id, "observations": values, "risk": assess_risk(values, (650, 250, 900, 450))} for track_id, values in store.all().items()]
 
 @app.get("/api/tracks/{track_id}/analytics")
-def track_analytics(track_id: str):
+def track_analytics(track_id: str, site_id: str | None = None):
     observations = store.get(track_id)
+    if site_id is not None:
+        observations = sorted(
+            (item for item in observations if item.site_id == site_id),
+            key=lambda item: item.timestamp,
+        )
     if not observations: raise HTTPException(404, "track not found")
-    try: return analyze_track(observations, (120, 60, 180, 120))
+    try:
+        analytics = analyze_track(observations, (120, 60, 180, 120))
     except ValueError as exc: raise HTTPException(422, str(exc)) from exc
+    metric = [item for item in observations if item.site_position_m is not None]
+    anchor = metric[-1]
+    return {
+        **analytics.model_dump(),
+        "forecast_anchor": anchor,
+        "forecast_step_seconds": 5,
+        "forecast_horizon_seconds": 30,
+        "metric_observation_count": len({item.timestamp for item in metric}),
+    }
 
 @app.post("/api/tracks/{track_id}/relative-analytics")
 def relative_analytics(track_id: str, ownship: OwnshipState):
