@@ -45,6 +45,10 @@ Open **Model evaluation** to run the bundled hybrid experiment, or run `python -
 
 Use `python -m backend.hybrid_replay path/to/paired-windows.json` with data shaped like `testsampledata/hybrid_replay.json`. Pair event windows and vision detections from the same time interval and image region before exporting them. Supply the YOLO class and confidence for that region and ordered relative event timestamps in milliseconds. Mark the input provenance explicitly. The evaluator accepts recorded event windows and YOLO prediction values, but does not ingest raw event-camera files or automatically align camera streams. Optional activity labels allow an activity agreement score. This experiment does not measure drone classification accuracy, sensor power, or end-to-end latency.
 
+### Challenge 05 model integration
+
+The local Challenge 05 adapter audits the organizer's train, validation and held-out test manifests and accepts a trusted acoustic `.onnx` model or the starter kit's plain `.pt` state dict. It provides CLI batch submissions and bounded PNG inference endpoints. RF-DETR Nano is available as an optional **full ONNX** still-frame adapter with an explicit class map; the existing YOLO `.pt` replay remains available. See [Challenge 05 integration](docs/CHALLENGE05_INTEGRATION.md) for setup, model transfer, commands and input contracts. No trained Challenge 05 weights are included in the repository.
+
 Open **Video replay** in the console and select the original video and the version 1 replay JSON. Files are opened locally in the browser. The video must match the digest and metadata in the bundle. Boxes can include `track_id`, `camera_id`, and `observation_timestamp` to link to an existing observation in the selected site. Select a linked frame as evidence to include its reference in the incident JSON export. Raw video and the browser's evidence selection are not stored by the API.
 
 Operator decisions are stored in local SQLite at `DECISION_DB_PATH`. Reloading the same synthetic incident retrieves its history after restart. Track observations are still stored in memory.

@@ -12,6 +12,8 @@ __pycache__/
 *.key
 *.pem
 artifacts/
+EDTH Hackathon 2026/
+EDTH Hackathon 2026.zip
 test-results/
 playwright-report/
 data/evidence/

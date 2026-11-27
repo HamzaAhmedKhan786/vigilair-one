@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     detector_model: str = "yolo11n.pt"
     detector_device: str = "cpu"
     detector_confidence: float = 0.35
+    challenge05_dataset_dir: str | None = None
+    acoustic_model_path: str | None = None
+    acoustic_onnx_path: str | None = None
+    acoustic_onnx_sha256: str | None = None
+    acoustic_wake_threshold: float | None = None
+    acoustic_architecture: str = "mobilenet_v3_small"
+    rfdetr_onnx_path: str | None = None
+    rfdetr_onnx_sha256: str | None = None
+    rfdetr_class_names: str | None = None
     tracker_type: str = "bytetrack"
     featherless_api_key: str | None = None
     featherless_base_url: str = "https://api.featherless.ai/v1"
