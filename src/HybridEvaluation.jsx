@@ -36,6 +36,11 @@ export function HybridEvaluation() {
         <div><strong>{result.snn_compute_ms_per_window.toFixed(4)} ms</strong><small>SNN CPU compute per window</small></div>
         <div><strong>Unavailable</strong><small>Hardware power and field accuracy</small></div>
       </div>
+      <div className="hybrid-raster" role="img" aria-label="Measured spike times from synthetic fixture windows">
+        <strong>Spike raster · simulated event input</strong>
+        {result.windows.map((window, row) => <div key={window.window_id} className="hybrid-raster-row"><span>{window.window_id}</span><svg viewBox="0 0 100 14" preserveAspectRatio="none">{window.spike_times_ms.map((time, index) => <line key={index} x1={Math.max(0, Math.min(100, time / 10))} x2={Math.max(0, Math.min(100, time / 10))} y1="2" y2="12" stroke="currentColor" strokeWidth=".6" />)}</svg></div>)}
+        <small>Membrane potential trace unavailable; the current replay exports spike times only.</small>
+      </div>
       <div className="hybrid-results">
         <table>
           <thead><tr><th>Window</th><th>Vision</th><th>Events → spikes</th><th>Activity check</th><th>Combined evidence</th></tr></thead>

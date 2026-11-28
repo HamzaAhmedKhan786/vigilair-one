@@ -19,6 +19,7 @@ from .decision_store import DecisionStore
 from .geospatial import evaluate_handoff, haversine_m
 from .multisite import GlobalTrackStore
 from .model_integration.api import router as acoustic_model_router, visual_router
+from .research.api import router as research_router
 from .weather import WeatherService, WeatherUnavailable
 
 settings = get_settings()
@@ -26,6 +27,7 @@ app = FastAPI(title="VIGILAIR ONE API", version="0.1.0", description="Decision-s
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(acoustic_model_router)
 app.include_router(visual_router)
+app.include_router(research_router)
 store = TrackStore()
 decisions = DecisionStore(settings.resolve(settings.decision_db_path))
 calibrations = load_calibrations(settings.resolve(settings.calibration_path))

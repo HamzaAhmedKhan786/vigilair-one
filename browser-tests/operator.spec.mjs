@@ -32,6 +32,7 @@ test('loads replay, scrubs a track, records the chosen recommendation and export
   })
 
   await page.goto('/')
+  await page.getByRole('button', { name: 'Overview' }).click()
   await page.getByRole('button', { name: 'Load replay' }).click()
   await expect(page.getByText('API REPLAY')).toBeVisible()
   const slider = page.getByRole('slider', { name: 'Replay observation' })
@@ -89,6 +90,7 @@ test('regional history distinguishes confirmed, candidate, and rejected reports'
     return route.fulfill({ status: 404 })
   })
   await page.goto('/')
+  await page.getByRole('button', { name: 'Overview' }).click()
   const history = page.getByRole('region', { name: 'Regional track history' })
   await expect(history.getByText('Site changes can include gaps in coverage.', { exact: false })).toBeVisible()
   await expect(history.getByRole('row').filter({ hasText: 'LOCAL-0' }).getByRole('button')).toHaveCount(1)

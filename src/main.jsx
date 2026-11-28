@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { AlertTriangle, Camera, Check, ChevronDown, Clock3, Download, Eye, MapPin, Pause, Play, Radio, RefreshCw, ShieldCheck, X } from 'lucide-react'
+import { AlertTriangle, Camera, Check, ChevronDown, Clock3, Download, Eye, MapPin, Moon, Pause, Play, Radio, RefreshCw, ShieldCheck, Sun, X } from 'lucide-react'
 import { api } from './api'
 import { detectionStatus, visibleForecast } from './selectors.mjs'
 import { RegionalTracks } from './RegionalTracks'
@@ -8,12 +8,14 @@ import { ThermalEvidence } from './ThermalEvidence'
 import { AnnotatedVideo } from './AnnotatedVideo'
 import { HybridEvaluation } from './HybridEvaluation'
 import { SiteWeather } from './SiteWeather'
+import { ResearchLab } from './ResearchLab'
 import { useConsoleData } from './useConsoleData'
 import { decisionPayload, demoFrame, demoZones, fallbackSites, fallbackCameras, latest, observationsForSite, pointFor, siteBounds, sortTracks } from './scenario'
 import './styles.css'
 import './console-layout.css'
+import './theme.css'
 
-const TABS = ['Overview', 'Video replay', 'Analytics', 'Evidence', 'Incident history', 'Model evaluation', 'System health']
+const TABS = ['Research lab', 'Overview', 'Video replay', 'Analytics', 'Evidence', 'Incident history', 'Model evaluation', 'System health']
 const time = value => value ? new Date(value).toLocaleTimeString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC' : '—'
 const label = value => value?.replaceAll('_', ' ') ?? '—'
 
@@ -110,9 +112,10 @@ function Secondary({ tab, track, analytics, incident, cameras, status, mode, upd
 
 function App() {
   const consoleData = useConsoleData()
+  const [theme, setTheme] = useState(() => localStorage.getItem('vigilair-theme') === 'light' ? 'light' : 'dark')
   const [siteId, setSiteId] = useState('berlin-brandenburg-demo')
   const [selectedId, setSelectedId] = useState('VIG-042')
-  const [tab, setTab] = useState('Overview')
+  const [tab, setTab] = useState('Research lab')
   const [frameIndex, setFrameIndex] = useState(null)
   const [playing, setPlaying] = useState(false)
   const [incident, setIncident] = useState(null)
@@ -127,6 +130,7 @@ function App() {
   const observation = (frameIndex == null ? null : track?.observations[frameIndex]) || latest(track)
   const replayIndex = frameIndex ?? Math.max(0, (track?.observations.length ?? 1) - 1)
   const forecast = visibleForecast(analytics, observation, consoleData.status === "connected")
+  useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('vigilair-theme', theme) }, [theme])
   const selectObservation = (id, index) => { setSelectedId(id); setFrameIndex(index); setPlaying(false) }
   useEffect(() => { if (!playing || !track) return; const timer = setInterval(() => setFrameIndex(index => ((index ?? -1) + 1) % track.observations.length), 900); return () => clearInterval(timer) }, [playing, track])
   useEffect(() => { if (consoleData.status !== 'connected' || !track) { setIncident(null); setAnalytics(null); setAllocation(null); return }; let active = true; Promise.allSettled([api.incident(track.track_id), api.analytics(track.track_id, siteId), api.allocation(track.track_id)]).then(results => { if (!active) return; setIncident(results[0].status === 'fulfilled' ? results[0].value : null); setAnalytics(results[1].status === 'fulfilled' ? results[1].value : null); setAllocation(results[2].status === 'fulfilled' ? results[2].value : null) }); return () => { active = false } }, [track?.track_id, siteId, consoleData.status, consoleData.updatedAt])
@@ -158,12 +162,12 @@ function App() {
       ? { video_evidence: videoEvidence } : {}) }
     : null
   const exportReport = () => { if (!report) return; const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `${report.incident_id}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000) }
-  return <div className="app-shell"><header className="topbar"><div className="brand"><span className="brand-mark">V</span><div><strong>VIGILAIR<span>ONE</span></strong><small>Beyond Detection. Continuous Awareness.</small></div></div><div className="topbar-right"><Badge tone={consoleData.status === 'connected' ? 'green' : 'amber'}><Radio size={12}/>{consoleData.status}</Badge><span>DECISION SUPPORT ONLY</span></div></header>
+  return <div className="app-shell"><header className="topbar"><div className="brand"><span className="brand-mark">V</span><div><strong>VIGILAIR<span>ONE</span></strong><small>Beyond Detection. Continuous Awareness.</small></div></div><div className="topbar-right"><button className="theme-toggle" type="button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={15}/> : <Moon size={15}/>} {theme === 'dark' ? 'Light' : 'Dark'} mode</button><Badge tone={consoleData.status === 'connected' ? 'green' : 'amber'}><Radio size={12}/>{consoleData.status}</Badge><span>DECISION SUPPORT ONLY</span></div></header>
     <main className="workspace"><div className="toolbar"><div className="toolbar-title"><small>OPERATIONS CONSOLE</small><h1>Regional awareness</h1></div><label className="site-select"><MapPin size={15}/><select aria-label="Select site" value={siteId} onChange={event => (setSiteId(event.target.value), selectObservation(null, null))}>{consoleData.sites.map(site => <option key={site.site_id} value={site.site_id}>{site.name}</option>)}</select><ChevronDown size={14}/></label><Badge tone="cyan">{consoleData.mode.toUpperCase()}</Badge><span className="toolbar-stat"><Camera size={15}/>{consoleData.cameras.filter(c => c.status === 'online').length}/{consoleData.cameras.length} cameras configured</span><button onClick={() => consoleData.refresh()} aria-label="Refresh data"><RefreshCw size={15}/></button><button className="replay-reset" onClick={() => consoleData.reset().then(() => setNotice('Synthetic replay loaded')).catch(e => setNotice(`Replay unavailable: ${e.message}`))}><Play size={14}/> Load replay</button></div>
       {consoleData.status !== 'connected' && <div className="state-banner" role="status"><AlertTriangle size={15}/>{consoleData.status === 'loading' ? 'Connecting to API…' : consoleData.status === 'stale' ? 'API data is stale. Last known data shown.' : 'API disconnected. Synthetic local scenario shown; decisions cannot be recorded.'}{consoleData.error && <span>{consoleData.error}</span>}</div>}
       <nav className="tabs" aria-label="Console sections">{TABS.map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)} aria-current={tab === item ? 'page' : undefined}>{item}</button>)}</nav>
-      <SiteWeather site={consoleData.sites.find(site => site.site_id === siteId)}/>
-      {tab === 'Overview' ? <><div className="primary-grid"><SiteMap forecast={forecast} tracks={tracks} selectedId={track?.track_id} selectedObservation={observation} onSelectObservation={selectObservation} zones={siteId === fallbackSites[0].site_id ? demoZones : []}/><IncidentQueue tracks={tracks} selectedId={track?.track_id} onInspect={inspect} onDecision={beginReview} busy={busy}/></div><div className="lower-grid"><CameraReplay observation={observation} track={track} cameras={consoleData.cameras.length ? consoleData.cameras : fallbackCameras} playing={playing} setPlaying={setPlaying} frameIndex={replayIndex} setFrameIndex={setFrameIndex}/><Review track={track} incident={incident} analytics={analytics} allocation={allocation} onDecision={beginReview} busy={busy} notice={notice}/></div><RegionalTracks sites={consoleData.sites} siteId={siteId} localTrackId={track?.track_id} status={consoleData.status} updatedAt={consoleData.updatedAt} onInspectSite={(site, id) => { setSiteId(site); selectObservation(id, null) }}/><ThermalEvidence observation={observation}/></> : tab !== 'Video replay' ? <Secondary tab={tab} track={track} analytics={analytics} incident={report} cameras={consoleData.cameras} status={consoleData.status} mode={consoleData.mode} updatedAt={consoleData.updatedAt} onExport={exportReport}/> : null}
+      {tab !== 'Research lab' && <SiteWeather site={consoleData.sites.find(site => site.site_id === siteId)}/>}
+      {tab === 'Research lab' ? <ResearchLab theme={theme}/> : tab === 'Overview' ? <><div className="primary-grid"><SiteMap forecast={forecast} tracks={tracks} selectedId={track?.track_id} selectedObservation={observation} onSelectObservation={selectObservation} zones={siteId === fallbackSites[0].site_id ? demoZones : []}/><IncidentQueue tracks={tracks} selectedId={track?.track_id} onInspect={inspect} onDecision={beginReview} busy={busy}/></div><div className="lower-grid"><CameraReplay observation={observation} track={track} cameras={consoleData.cameras.length ? consoleData.cameras : fallbackCameras} playing={playing} setPlaying={setPlaying} frameIndex={replayIndex} setFrameIndex={setFrameIndex}/><Review track={track} incident={incident} analytics={analytics} allocation={allocation} onDecision={beginReview} busy={busy} notice={notice}/></div><RegionalTracks sites={consoleData.sites} siteId={siteId} localTrackId={track?.track_id} status={consoleData.status} updatedAt={consoleData.updatedAt} onInspectSite={(site, id) => { setSiteId(site); selectObservation(id, null) }}/><ThermalEvidence observation={observation}/></> : tab !== 'Video replay' ? <Secondary tab={tab} track={track} analytics={analytics} incident={report} cameras={consoleData.cameras} status={consoleData.status} mode={consoleData.mode} updatedAt={consoleData.updatedAt} onExport={exportReport}/> : null}
       <div hidden={tab !== 'Video replay'}><AnnotatedVideo active={tab === 'Video replay'} tracks={tracks} onSelectObservation={selectObservation} onEvidence={setVideoEvidence}/>{videoEvidence && <p className="padded" role="status">Evidence selected · frame {videoEvidence.frame} · {videoEvidence.linked_track_id || 'No verified track link'}</p>}</div>
       {review && <form className="panel review-form" onSubmit={saveReview} aria-label="Record operator decision">
         <strong>{label(review.decision)} · {review.id}</strong>

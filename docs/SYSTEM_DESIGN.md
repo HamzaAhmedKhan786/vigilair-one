@@ -6,6 +6,8 @@ VIGILAIR ONE is a low-cost, human-in-the-loop aerial awareness layer for sites t
 
 ## Runtime architecture
 
+The hardware-free Research lab is an independent offline path: `research_sites.json` → deterministic GeoJSON and trajectory → FastAPI `/api/research` → MapLibre view and replay timeline. Virtual microphones/cameras and approved local media enter SQLite metadata plus original-byte storage. Human annotations are stored separately. The model registry checks package metadata and file hashes without executing weights. Synthetic activation events never activate physical sensors. Research model outputs remain unavailable until a trusted export and offline evaluation exist. See [RESEARCH_DEMO.md](RESEARCH_DEMO.md).
+
 ```text
 RGB / thermal cameras ──> capture adapters ──> local detector
                                                   │

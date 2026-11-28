@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     featherless_model: str = "zai-org/GLM-5.3-Flash"
     database_url: str = "sqlite:///./data/vigilair.db"
     decision_db_path: str = "data/operator_decisions.db"
+    research_models_path: str = "models"
+    research_sites_path: str = "data/research_sites.json"
+    research_media_db_path: str = "data/research_media.db"
+    research_media_path: str = "artifacts/media"
     retention_days: int = 30
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
 

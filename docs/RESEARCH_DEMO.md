@@ -1,0 +1,25 @@
+# Hardware-free research demonstration
+
+VigilairOne keeps its existing operations console, incident review, replay, and Challenge 05 adapters. **Research lab** is a separate, offline demonstration. The map uses [MapLibre GL JS](https://maplibre.org/maplibre-gl-js/docs/) with locally generated GeoJSON and a blank style, so it requests no map tiles. Its 28 zones and trajectories are fictional and centered on synthetic coordinates. They do not identify facilities or infer a location from uploaded media.
+
+## Run and inspect
+
+Run `scripts/run_demo.ps1`, then open the Research lab tab. The backend exposes `/api/research/scenario`, `/models`, `/models/refresh`, `/sensors`, `/media`, and `/health`. The UI replays one deterministic 31-observation track at a 200 ms screen interval; scenario time advances ten seconds per observation. The predefined acoustic cue, visual review point, and zone transition are **simulated event labels**, not detections or sensor activations. Click an event to seek to its step. The existing experimental YOLO and LIF/SNN fixture remains separately labeled.
+
+The editable grid configuration is `data/research_sites.json`. It must contain 24–35 sites and 3–4 initially visible neighbors. Trajectory distance and heading use the existing geospatial functions; the displayed errors compare those results against independently constructed local metric-plane truth. Those errors do not measure physical field accuracy. UI frame timing, WAV feature processing time, and model inference latency are different quantities. Only the first two are measured in this research view.
+
+## Model packages
+
+`models/registry.json` names acoustic CNN + LIF/SNN, RF-DETR Nano, YOLO comparison, and MobileNetV3-Small baseline packages. Each artifact path stays inside `models/`, and weights are Git ignored. A package needs a non-placeholder version, exact preprocessing, class order, input and output tensor specifications, training source, dataset version, license, a weight file, and its SHA256. **Refresh** checks paths and hashes without deserializing or executing weights. `package_complete_unverified` means metadata and bytes agree; it is not an inference, accuracy, safety, or benchmark result. Resolve architecture-specific runtime compatibility and run held-out evaluation offline after the teammate provides trusted exports. The existing Challenge 05 adapter is documented in [CHALLENGE05_INTEGRATION.md](CHALLENGE05_INTEGRATION.md). In particular, an arbitrary `.pt` checkpoint must not be executed merely because it has that extension.
+
+The official Challenge 05 train/validation/test split is never rewritten by this module. Keep organizer data and transferred weights outside Git. Record their release, license, digest, class order, preprocessing and calibrated decision threshold before evaluation. The acoustic research branch expects five-second, 16 kHz mono audio transformed to 224×224 log-Mel input when its eventual export contract specifies it. RF-DETR requires a full compatible detector export. Existing YOLO replay stays available as a comparison baseline. Current registry entries intentionally remain incomplete.
+
+## Virtual media and evidence
+
+Create virtual microphones or cameras against fictional sites. Upload WAV, MP3, MP4, WebM, JPEG or PNG (maximum 100 MiB) and select a matching sensor. The server validates media type, stores the original bytes in `artifacts/media`, records SHA256, size and available metadata in local SQLite, and returns the original for playback. Human positive, negative, or uncertain labels occupy a separate table; they do not rewrite media or create model predictions. If `ffprobe` is installed, container metadata is extracted. Browser codec support varies; a valid file may still not play in a given browser. WAV spectral charts require PCM WAV. MP3 and video are playable but have no server spectral chart. The WAV endpoint computes waveform RMS, FFT and a log-Mel matrix from uploaded PCM; these are measured features, not classifications.
+
+The research API has no physical actuator endpoint. Deploy only on localhost or behind an authenticated reverse proxy for trusted teams: the prototype upload and annotation API does not implement user accounts. Keep licensed media, model artifacts, and personal information out of the public repository. The existing operations console and its advisory operator decisions remain separate.
+
+## Verification and remaining dependencies
+
+Run `scripts/verify_project.ps1`, `npm run test:browser`, and `npm run build`. Browser tests use Playwright Chromium or `PLAYWRIGHT_CHANNEL=msedge`. The registry and UI can run with all four model packages missing. Remaining research dependencies are trusted trained exports with their metadata, licensed evaluation media, calibrated thresholds, a held-out split, measured hardware latency and power, and a supported runtime for each export. No current screen claims these results.
