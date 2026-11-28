@@ -19,7 +19,7 @@ function sector(coordinates) {
   return shape('Polygon', [[start, edge(-.18), edge(.18), start]])
 }
 
-export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSelect, incidentTracks = [], selectedIncidentId, onIncidentSelect }) {
+export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSelect, incidentTracks = [], selectedIncidentId, selectedIncidentObservation, onIncidentSelect, showScenarioTrack = true }) {
   const element = useRef(null)
   const mapRef = useRef(null)
   const droneRef = useRef(null)
@@ -84,13 +84,13 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
     if (!map || mapState !== 'ready' || !scenario) return
     const visible = new Set(visibleIds)
     const context = new Set(visibleIds.flatMap(id => scenario.sites.find(site => site.site_id === id)?.neighbors ?? []))
-    const predicted = new Set(observation?.prediction?.next_zone_ids ?? [])
-    const states = observation?.zone_states ?? {}
+    const predicted = new Set(showScenarioTrack ? observation?.prediction?.next_zone_ids ?? [] : [])
+    const states = showScenarioTrack ? observation?.zone_states ?? {} : { [visibleIds[0]]: { state: 'tracked' } }
     map.getSource('zones').setData(collection(scenario.zones.features.filter(feature => visible.has(feature.properties.site_id) || context.has(feature.properties.site_id) || predicted.has(feature.properties.site_id)).map(feature => ({
       ...feature, properties: { ...feature.properties, state: states[feature.properties.site_id]?.state ?? (visible.has(feature.properties.site_id) ? 'active' : 'inactive'), visible: visible.has(feature.properties.site_id) },
     }))))
     labelsRef.current.forEach(marker => marker.remove())
-    const labelIds = [...new Set([...visibleIds, ...(observation?.prediction?.next_zone_ids ?? [])])]
+    const labelIds = [...new Set([...visibleIds, ...predicted])]
     labelsRef.current = labelIds.map(id => {
       const site = scenario.sites.find(item => item.site_id === id)
       if (!site) return null
@@ -99,7 +99,7 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
       node.textContent = `${id} · ${site.name.replace('Fictional ', '')}`
       return new Marker({ element: node, anchor: 'center' }).setLngLat([site.longitude, site.latitude]).addTo(map)
     }).filter(Boolean)
-  }, [scenario, visibleIds, observation?.step, mapState])
+  }, [scenario, visibleIds, observation?.step, showScenarioTrack, mapState])
 
   useEffect(() => {
     const map = mapRef.current
@@ -114,6 +114,13 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
   useEffect(() => {
     const map = mapRef.current
     if (!map || mapState !== 'ready' || !scenario || !observation) return
+    if (!showScenarioTrack) {
+      for (const id of ['trail', 'prediction', 'sector']) map.getSource(id).setData(collection([]))
+      if (droneRef.current) droneRef.current.getElement().style.display = 'none'
+      if (targetRef.current) targetRef.current.getElement().style.display = 'none'
+      return
+    }
+    if (droneRef.current) droneRef.current.getElement().style.display = ''
     const history = scenario.observations.slice(0, observation.step + 1)
     const path = observation.prediction?.coordinates ?? []
     map.getSource('trail').setData(shape('LineString', history.map(item => [item.longitude, item.latitude])))
@@ -127,14 +134,20 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
       drone.querySelector('.drone-glyph').style.transform = `rotate(${observation.heading_deg ?? 0}deg)`
       drone.querySelector('.drone-marker-label').textContent = observation.track_id ?? 'SYNTHETIC TRACK'
     }
-  }, [scenario, observation, mapState])
+  }, [scenario, observation, showScenarioTrack, mapState])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || mapState !== 'ready') return
+    const positionFor = track => {
+      if (selectedIncidentId !== track.track_id || !selectedIncidentObservation) return track.coordinates.length - 1
+      const index = track.observations.findIndex(item => item.timestamp === selectedIncidentObservation.timestamp)
+      return index < 0 ? track.coordinates.length - 1 : index
+    }
     for (const kind of ['drone', 'bird']) {
       const features = incidentTracks.filter(track => track.class_name === kind && track.coordinates.length > 1)
-        .map(track => ({ type: 'Feature', properties: { track_id: track.track_id }, geometry: { type: 'LineString', coordinates: track.coordinates } }))
+        .map(track => ({ type: 'Feature', properties: { track_id: track.track_id }, geometry: { type: 'LineString', coordinates: track.coordinates.slice(0, positionFor(track) + 1) } }))
+        .filter(feature => feature.geometry.coordinates.length > 1)
       map.getSource(`incident-${kind}`).setData(collection(features))
     }
     incidentMarkersRef.current.forEach(marker => marker.remove())
@@ -143,11 +156,12 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
       node.type = 'button'
       node.className = `research-incident-marker ${track.class_name === 'bird' ? 'bird' : 'drone'} ${selectedIncidentId === track.track_id ? 'selected' : ''}`
       node.textContent = `${track.track_id} · ${track.class_name.toUpperCase()}`
+      node.dataset.observationTime = track.observations[positionFor(track)]?.timestamp ?? ''
       node.title = `${track.track_id}: illustrative site-local projection. Inspect synthetic camera observation.`
       node.addEventListener('click', event => { event.stopPropagation(); incidentSelectRef.current?.(track.track_id) })
-      return new Marker({ element: node, anchor: 'bottom' }).setLngLat(track.coordinates.at(-1)).addTo(map)
+      return new Marker({ element: node, anchor: 'bottom' }).setLngLat(track.coordinates[positionFor(track)]).addTo(map)
     })
-  }, [incidentTracks, selectedIncidentId, mapState])
+  }, [incidentTracks, selectedIncidentId, selectedIncidentObservation?.timestamp, mapState])
 
   useEffect(() => {
     const map = mapRef.current
@@ -160,6 +174,6 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
   return <div className="research-map-wrap"><div className="research-map" ref={element} role="img" aria-label="MapLibre honeycomb of fictional hexagonal zones with synthetic drone trail and estimated path" />
     <div className="research-map-controls" role="group" aria-label="Map view controls"><button type="button" className={mode === '2d' ? 'selected' : ''} onClick={() => setMode('2d')} aria-pressed={mode === '2d'}>2D</button><button type="button" className={mode === '3d' ? 'selected' : ''} onClick={() => setMode('3d')} aria-pressed={mode === '3d'}>3D</button><button type="button" aria-label="Zoom in" onClick={() => mapRef.current?.zoomIn()}>+</button><button type="button" aria-label="Zoom out" onClick={() => mapRef.current?.zoomOut()}>−</button></div>
     {mapState === 'unavailable' && <p className="research-map-fallback">WebGL map unavailable. Use the zone selector and observation history below.</p>}
-    <span className="research-map-watermark">FICTIONAL GEOJSON · ESTIMATED PATH · {licensedStyleURL ? 'OPTIONAL LICENSED BASEMAP' : 'OFFLINE BASEMAP'}</span>
+    <span className="research-map-watermark">FICTIONAL GEOJSON · {showScenarioTrack ? 'ESTIMATED RESEARCH PATH' : 'ILLUSTRATIVE INCIDENT PROJECTION'} · {licensedStyleURL ? 'OPTIONAL LICENSED BASEMAP' : 'OFFLINE BASEMAP'}</span>
   </div>
 }

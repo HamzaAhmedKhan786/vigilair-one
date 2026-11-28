@@ -26,3 +26,6 @@ html[data-theme='light'] .toolbar button,html[data-theme='light'] .decision-acti
 html[data-theme='light'] .toolbar .replay-reset,html[data-theme='light'] .decision-actions .primary { color:#fff; background:#325e42; }
 html[data-theme='light'] .review-form select,html[data-theme='light'] .review-form input,html[data-theme='light'] .review-form button,html[data-theme='light'] .video-inputs button { color:#203432; background:var(--panel2); }
 button:focus-visible,select:focus-visible,input:focus-visible { outline:2px solid var(--olive); outline-offset:2px; }
+
+.brand-logo { width:42px; height:42px; object-fit:contain; flex:none; }
+html[data-theme='dark'] .brand-logo { filter:brightness(2.25) saturate(.85); }

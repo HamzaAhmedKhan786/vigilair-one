@@ -17,7 +17,11 @@ try {
       await page.getByRole('combobox', { name: 'Overview fictional site' }).selectOption('FIC-10')
     }
     await page.locator('.research-map canvas').first().waitFor()
-    await page.getByRole('slider', { name: 'Synthetic replay step' }).fill('4')
+    if (tab === 'Research lab') await page.getByRole('slider', { name: 'Synthetic replay step' }).fill('4')
+    else {
+      await page.locator('.research-incident-marker.drone').waitFor()
+      await page.locator('.research-overview-map .research-drone-marker').waitFor({ state: 'hidden' })
+    }
     if (theme === 'light') {
       await page.getByRole('button', { name: 'Switch to light mode' }).click()
       await page.getByRole('button', { name: '3D', exact: true }).click()
