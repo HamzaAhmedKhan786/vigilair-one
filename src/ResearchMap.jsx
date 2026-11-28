@@ -7,9 +7,17 @@ setWorkerUrl(workerUrl)
 
 const collection = features => ({ type: 'FeatureCollection', features })
 const shape = (type, coordinates) => collection([{ type: 'Feature', properties: {}, geometry: { type, coordinates } }])
-const blankStyle = { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#101a21' } }] }
+const blankStyle = { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#eceee9' } }] }
 const licensedStyleURL = import.meta.env.VITE_RESEARCH_BASEMAP_STYLE_URL || ''
-const zoneColor = ['match', ['get', 'state'], 'tracked', '#e1bb7c', 'predicted_next', '#f4a86f', 'watch', '#91c5af', 'active', '#88a8b0', '#3d5659']
+// Map colours per theme (VigilAir Design System). light = B · Command Post, dark = A · Night Watch.
+// Zone state is carried by outline style as well as colour: solid tracked, dashed predicted, dotted watch.
+export const mapPalette = {
+  light: { ground: '#eceee9', tracked: '#8a5a00', predicted_next: '#8a5a00', watch: '#0b4f8a', active: '#4f585e', inactive: '#9ea59b', sector: '#8a5a00', trail: '#6f6a00', halo: '#ffffff', forecast: '#5b2a86', drone: '#6f6a00', bird: '#1f6e2e' },
+  dark: { ground: '#080c09', tracked: '#f2a93b', predicted_next: '#f2a93b', watch: '#9fb3c8', active: '#8b9879', inactive: '#263326', sector: '#f2a93b', trail: '#ffff80', halo: '#000000', forecast: '#b8a4e0', drone: '#ffff80', bird: '#aaffaa' },
+}
+const paletteFor = theme => mapPalette[theme === 'dark' ? 'dark' : 'light']
+const zoneColor = palette => ['match', ['get', 'state'], 'tracked', palette.tracked, 'predicted_next', palette.predicted_next, 'watch', palette.watch, 'active', palette.active, palette.inactive]
+const isState = state => ['==', ['get', 'state'], state]
 
 function sector(coordinates) {
   const [start, end] = [coordinates[0], coordinates.at(-1)]
@@ -31,6 +39,8 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
   selectRef.current = onZoneSelect
   const incidentSelectRef = useRef(onIncidentSelect)
   incidentSelectRef.current = onIncidentSelect
+  const themeRef = useRef(theme)
+  themeRef.current = theme
   const [mapState, setMapState] = useState('loading')
   const [mode, setMode] = useState('2d')
 
@@ -50,15 +60,19 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
       map.on('load', () => {
         ready = true
         for (const id of ['zones', 'trail', 'prediction', 'sector', 'incident-drone', 'incident-bird']) map.addSource(id, { type: 'geojson', data: collection([]) })
-        map.addLayer({ id: 'zone-fill', type: 'fill', source: 'zones', paint: { 'fill-color': zoneColor, 'fill-opacity': ['case', ['get', 'visible'], .42, ['==', ['get', 'state'], 'predicted_next'], .29, .075] } })
-        map.addLayer({ id: 'zone-extrusion', type: 'fill-extrusion', source: 'zones', layout: { visibility: 'none' }, paint: { 'fill-extrusion-color': zoneColor, 'fill-extrusion-height': ['case', ['get', 'visible'], 140, 45], 'fill-extrusion-opacity': .46 } })
-        map.addLayer({ id: 'zone-line', type: 'line', source: 'zones', paint: { 'line-color': zoneColor, 'line-width': ['case', ['get', 'visible'], 2.2, ['==', ['get', 'state'], 'predicted_next'], 1.7, .8], 'line-opacity': ['case', ['get', 'visible'], .95, ['==', ['get', 'state'], 'predicted_next'], .85, .35] } })
-        map.addLayer({ id: 'uncertainty-sector', type: 'fill', source: 'sector', paint: { 'fill-color': '#e1bb7c', 'fill-opacity': .13 } })
-        map.addLayer({ id: 'trail-line', type: 'line', source: 'trail', paint: { 'line-color': '#85c0b2', 'line-width': 3 } })
-        map.addLayer({ id: 'prediction-halo', type: 'line', source: 'prediction', paint: { 'line-color': '#11191c', 'line-width': 7, 'line-opacity': .7 } })
-        map.addLayer({ id: 'prediction-line', type: 'line', source: 'prediction', paint: { 'line-color': '#ffe3a8', 'line-width': 4, 'line-dasharray': [1, 1.5] } })
-        map.addLayer({ id: 'incident-drone-line', type: 'line', source: 'incident-drone', paint: { 'line-color': '#ffbd79', 'line-width': 3.5 } })
-        map.addLayer({ id: 'incident-bird-line', type: 'line', source: 'incident-bird', paint: { 'line-color': '#91d4a5', 'line-width': 3.5 } })
+        const palette = paletteFor(themeRef.current)
+        if (map.getLayer('background') && (!licensedStyleURL || fallbackRef.current)) map.setPaintProperty('background', 'background-color', palette.ground)
+        map.addLayer({ id: 'zone-fill', type: 'fill', source: 'zones', paint: { 'fill-color': zoneColor(palette), 'fill-opacity': ['case', ['get', 'visible'], .32, isState('predicted_next'), .16, .06] } })
+        map.addLayer({ id: 'zone-extrusion', type: 'fill-extrusion', source: 'zones', layout: { visibility: 'none' }, paint: { 'fill-extrusion-color': zoneColor(palette), 'fill-extrusion-height': ['case', ['get', 'visible'], 140, 45], 'fill-extrusion-opacity': .46 } })
+        map.addLayer({ id: 'zone-line', type: 'line', source: 'zones', filter: ['!', ['in', ['get', 'state'], ['literal', ['predicted_next', 'watch']]]], paint: { 'line-color': zoneColor(palette), 'line-width': ['case', ['get', 'visible'], 3, .8], 'line-opacity': ['case', ['get', 'visible'], 1, .6] } })
+        map.addLayer({ id: 'zone-line-predicted', type: 'line', source: 'zones', filter: isState('predicted_next'), paint: { 'line-color': palette.predicted_next, 'line-width': 2.5, 'line-dasharray': [3, 2] } })
+        map.addLayer({ id: 'zone-line-watch', type: 'line', source: 'zones', filter: isState('watch'), layout: { 'line-cap': 'round' }, paint: { 'line-color': palette.watch, 'line-width': 2, 'line-dasharray': [.2, 2] } })
+        map.addLayer({ id: 'uncertainty-sector', type: 'fill', source: 'sector', paint: { 'fill-color': palette.sector, 'fill-opacity': .13 } })
+        map.addLayer({ id: 'trail-line', type: 'line', source: 'trail', paint: { 'line-color': palette.trail, 'line-width': 3 } })
+        map.addLayer({ id: 'prediction-halo', type: 'line', source: 'prediction', paint: { 'line-color': palette.halo, 'line-width': 7, 'line-opacity': .7 } })
+        map.addLayer({ id: 'prediction-line', type: 'line', source: 'prediction', paint: { 'line-color': palette.forecast, 'line-width': 4, 'line-dasharray': [1, 1.5] } })
+        map.addLayer({ id: 'incident-drone-line', type: 'line', source: 'incident-drone', paint: { 'line-color': palette.drone, 'line-width': 3.5 } })
+        map.addLayer({ id: 'incident-bird-line', type: 'line', source: 'incident-bird', paint: { 'line-color': palette.bird, 'line-width': 3.5, 'line-dasharray': [2, 1] } })
         map.on('click', 'zone-fill', event => { const id = event.features?.[0]?.properties?.site_id; if (id) selectRef.current(id) })
         const node = document.createElement('div')
         node.className = 'research-drone-marker'
@@ -167,7 +181,18 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
   useEffect(() => {
     const map = mapRef.current
     if (!map || mapState !== 'ready') return
-    if (map.getLayer('background') && (!licensedStyleURL || fallbackRef.current)) map.setPaintProperty('background', 'background-color', theme === 'light' ? '#e6ebe5' : '#101a21')
+    const palette = paletteFor(theme)
+    if (map.getLayer('background') && (!licensedStyleURL || fallbackRef.current)) map.setPaintProperty('background', 'background-color', palette.ground)
+    for (const id of ['zone-fill', 'zone-line']) map.setPaintProperty(id, id === 'zone-fill' ? 'fill-color' : 'line-color', zoneColor(palette))
+    map.setPaintProperty('zone-extrusion', 'fill-extrusion-color', zoneColor(palette))
+    map.setPaintProperty('zone-line-predicted', 'line-color', palette.predicted_next)
+    map.setPaintProperty('zone-line-watch', 'line-color', palette.watch)
+    map.setPaintProperty('uncertainty-sector', 'fill-color', palette.sector)
+    map.setPaintProperty('trail-line', 'line-color', palette.trail)
+    map.setPaintProperty('prediction-halo', 'line-color', palette.halo)
+    map.setPaintProperty('prediction-line', 'line-color', palette.forecast)
+    map.setPaintProperty('incident-drone-line', 'line-color', palette.drone)
+    map.setPaintProperty('incident-bird-line', 'line-color', palette.bird)
     map.setLayoutProperty('zone-extrusion', 'visibility', mode === '3d' ? 'visible' : 'none')
     map.easeTo({ pitch: mode === '3d' ? 52 : 0, bearing: mode === '3d' ? -18 : 0, duration: 300 })
   }, [theme, mode, mapState])
