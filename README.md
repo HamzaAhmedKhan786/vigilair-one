@@ -4,7 +4,7 @@ Low-cost aerial awareness and operator decision support for critical-infrastruct
 
 The default **Research lab** offers an offline hardware-free demonstration with 28 fictional MapLibre zones, a synthetic hybrid event replay, local model-package readiness, virtual sensors, media review, human annotations, WAV plots, and persistent dark/light mode. See [Research demonstration](docs/RESEARCH_DEMO.md) for data provenance, model package requirements, endpoints, testing and limits. **Overview** retains the existing operator console and incident workflows.
 
-Research dashboard captures: [1440×900 dark](docs/screenshots/research-1440.png) and [1920×1080 light](docs/screenshots/research-1920-light.png). Capture the running API and Vite app again with `node scripts/capture_research.mjs`.
+Research dashboard captures: [1440×900 dark 2D](docs/screenshots/research-1440.png) and [1920×1080 light 3D](docs/screenshots/research-1920-light.png). Capture the running API and Vite app again with `node scripts/capture_research.mjs`.
 
 ## Run the demo
 

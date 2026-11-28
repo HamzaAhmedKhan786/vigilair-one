@@ -9,6 +9,7 @@ from backend.main import app
 from backend.research.media import MediaStore, wav_visualization
 from backend.research.registry import PackageRegistry
 from backend.research.scenario import scenario
+from backend.research.hex_grid import adjacency, containing_zone, grid
 
 
 def make_wav(frames=80000):
@@ -33,6 +34,30 @@ def test_fictional_grid_and_independent_truth():
     assert result["observations"][1]["speed_mps"] < 50
     assert [event["kind"] for event in result["activation_events"]] == [
         "simulated_acoustic_cue", "simulated_visual_review", "simulated_zone_transition"]
+    assert result["sites"][0]["neighbors"] == ["FIC-02", "FIC-08"]
+    assert all(b in next(site["neighbors"] for site in result["sites"] if site["site_id"] == a)
+               for a, b in zip(result["default_visible"], result["default_visible"][1:]))
+    first, second = (item["geometry"]["coordinates"][0] for item in result["zones"]["features"][:2])
+    assert len(set(map(tuple, first)) & set(map(tuple, second))) == 2
+    assert result["observations"][0]["prediction"]["next_zone_ids"] == ["FIC-02"]
+    assert result["observations"][0]["zone_states"]["FIC-02"]["operational_state"] == "alerted"
+    assert result["observations"][6]["handoff_phase"] == "active_handoff"
+    assert result["observations"][7]["handoff_phase"] == "received"
+    assert result["observations"][6]["zone_states"]["FIC-02"]["operational_state"] == "receiving_handoff"
+    for item in result["observations"]:
+        assert containing_zone({site["site_id"]: (site["longitude"], site["latitude"]) for site in result["sites"]},
+                               (item["longitude"], item["latitude"]), .008) == item["site_id"]
+        assert item["prediction"]["coordinates"][0] == [item["longitude"], item["latitude"]]
+
+
+def test_hex_helper_shared_edges_and_symmetric_adjacency():
+    centers, features = grid(4, 7, .008)
+    neighbors = adjacency(centers, .008)
+    assert len(centers) == 28
+    assert all(site_id in neighbors[other] for site_id, linked in neighbors.items() for other in linked)
+    assert max(map(len, neighbors.values())) <= 6
+    assert len(set(map(tuple, features["FIC-01"]["geometry"]["coordinates"][0])) &
+               set(map(tuple, features["FIC-02"]["geometry"]["coordinates"][0]))) == 2
 
 
 def test_registry_requires_contract_checksum_and_manual_refresh(tmp_path):

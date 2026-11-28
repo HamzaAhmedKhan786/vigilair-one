@@ -11,7 +11,11 @@ try {
     await page.goto(baseURL)
     await page.getByText('Hybrid awareness laboratory').waitFor()
     await page.locator('.research-map canvas').first().waitFor()
-    if (theme === 'light') await page.getByRole('button', { name: 'Switch to light mode' }).click()
+    await page.getByRole('slider', { name: 'Synthetic replay step' }).fill('4')
+    if (theme === 'light') {
+      await page.getByRole('button', { name: 'Switch to light mode' }).click()
+      await page.getByRole('button', { name: '3D', exact: true }).click()
+    }
     await page.waitForTimeout(600)
     await page.screenshot({ path: `docs/screenshots/${name}`, animations: 'disabled' })
     await page.close()

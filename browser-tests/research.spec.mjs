@@ -9,6 +9,13 @@ const scenario = {
   activation_events: [{ step: 2, elapsed_ms: 20_000, kind: 'simulated_acoustic_cue', description: 'Fixture cue' }],
   validation: { distance_mae_m: 0.5, distance_rmse_m: 0.6, circular_heading_mae_deg: 0.1 },
 }
+scenario.observations.forEach((item, index) => {
+  item.track_id = 'SYN-HEX-01'
+  item.prediction = { heading_deg: 90, estimated: true, next_zone_ids: [sites[Math.min(index + 1, 3)].site_id], coordinates: [[item.longitude, item.latitude], [item.longitude + .018, 0]] }
+  item.active_neighbor_ids = [sites[Math.min(index + 1, 3)].site_id]
+  item.handoff_phase = index === 2 ? 'active_handoff' : 'predicted_handoff'
+  item.zone_states = Object.fromEntries(sites.map(site => [site.site_id, { state: site.site_id === item.site_id ? 'tracked' : site.site_id === item.prediction.next_zone_ids[0] ? 'predicted_next' : 'inactive', operational_state: site.site_id === item.site_id ? 'active' : 'alerted', handoff: item.handoff_phase }]))
+})
 
 test('research replay, missing models, theme and human annotation', async ({ page }) => {
   const media = { id: 'media-fixture', original_name: 'sample.png', extension: 'png', site_id: 'FIC-01', state: 'ready', sha256: 'a'.repeat(64), bytes: 34, metadata: {} }
@@ -34,6 +41,17 @@ test('research replay, missing models, theme and human annotation', async ({ pag
   await expect(page.getByText('Missing artifacts')).toBeVisible()
   await page.getByRole('button', { name: /simulated acoustic cue/i }).click()
   await expect(page.getByRole('slider', { name: 'Synthetic replay step' })).toHaveValue('2')
+  await expect(page.locator('.research-drone-marker .drone-marker-label')).toHaveText('SYN-HEX-01')
+  await expect(page.getByText('SYN-HEX-01 · Fictional sector 03')).toBeVisible()
+  await expect(page.locator('.research-zone-label.tracked')).toContainText('FIC-03')
+  await expect(page.locator('.research-zone-label.predicted_next')).toContainText('FIC-04')
+  await page.getByRole('button', { name: '3D', exact: true }).click()
+  await expect(page.getByRole('button', { name: '3D', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  const zoomBefore = await page.locator('.research-map').getAttribute('data-zoom')
+  await page.getByRole('button', { name: 'Zoom in' }).click()
+  await expect.poll(() => page.locator('.research-map').getAttribute('data-zoom')).not.toBe(zoomBefore)
+  await page.getByRole('button', { name: 'Zoom out' }).click()
+  await page.getByRole('button', { name: '2D', exact: true }).click()
   await page.getByRole('button', { name: 'Switch to light mode' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await page.getByRole('button', { name: /sample.png/ }).click()
