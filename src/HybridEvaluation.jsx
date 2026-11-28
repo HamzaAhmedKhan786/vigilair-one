@@ -8,23 +8,25 @@ const outcomes = {
   insufficient_evidence: 'Insufficient evidence',
 }
 
-export function HybridEvaluation() {
-  const [state, setState] = useState({ loading: true })
+export function HybridEvaluation({ evaluation }) {
+  const [localState, setState] = useState({ loading: true })
   const [run, setRun] = useState(0)
 
   useEffect(() => {
+    if (evaluation) return
     const controller = new AbortController()
     request('/api/experiments/hybrid-replay', { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(4000)]) })
       .then(result => { if (!controller.signal.aborted) setState({ result }) })
       .catch(() => { if (!controller.signal.aborted) setState({ error: true }) })
     return () => controller.abort()
-  }, [run])
+  }, [run, evaluation])
 
+  const state = evaluation ? evaluation.state : localState
   const { result, loading, error } = state
   return <section className="panel hybrid-panel" aria-label="Hybrid YOLO and SNN evaluation">
     <div className="panel-heading">
       <div><small>EXPERIMENTAL REPLAY</small><h2>Hybrid YOLO + SNN evaluation</h2></div>
-      <button disabled={loading} onClick={() => { setState({ loading: true }); setRun(value => value + 1) }}>Run again</button>
+      <button disabled={loading} onClick={() => evaluation ? evaluation.run() : (setState({ loading: true }), setRun(value => value + 1))}>Run again</button>
     </div>
     {loading && <p className="padded" role="status">Running the spiking activity model…</p>}
     {error && <p className="padded" role="alert">Hybrid replay unavailable. Check the API connection and run again.</p>}

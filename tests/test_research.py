@@ -77,10 +77,26 @@ def test_registry_requires_contract_checksum_and_manual_refresh(tmp_path):
     model.write_bytes(b"test artifact bytes")
     manifest["packages"][0]["artifacts"][0]["sha256"] = hashlib.sha256(model.read_bytes()).hexdigest()
     (tmp_path / "registry.json").write_text(json.dumps(manifest))
-    assert registry.snapshot()["packages"][0]["status"] == "missing"
+    assert registry.snapshot()["packages"][0]["status"] == "package_complete_unverified"
     assert registry.refresh()["packages"][0]["status"] == "package_complete_unverified"
     model.write_bytes(b"changed")
     assert registry.refresh()["packages"][0]["status"] == "incompatible"
+
+
+def test_registry_discovers_package_without_manual_refresh(tmp_path):
+    (tmp_path / "registry.json").write_text('{"schema_version":1,"packages":[]}')
+    registry = PackageRegistry(tmp_path)
+    package = tmp_path / "new-model"
+    package.mkdir()
+    (package / "package.json").write_text(json.dumps({
+        "id": "new-model", "name": "Local candidate", "version": "1.0.0", "family": "yolo",
+        "preprocessing": {"input_media": "rgb_image"}, "classes": ["drone"],
+        "inputs": {"image": "tensor"}, "outputs": {"boxes": ["boxes"]},
+        "provenance": {"training_source": "local", "dataset_version": "fixture", "license": "test"},
+        "artifacts": [{"role": "detector", "path": "new-model/weights.onnx", "format": "onnx", "sha256": None}],
+    }))
+    assert registry.snapshot()["packages"][0]["id"] == "new-model"
+    assert registry.snapshot()["packages"][0]["status"] == "missing"
 
 
 def test_media_api_preserves_original_and_separates_annotations(tmp_path, monkeypatch):

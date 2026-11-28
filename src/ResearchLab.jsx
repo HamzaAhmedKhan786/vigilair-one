@@ -1,53 +1,22 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { Activity, AudioLines, Camera, FileAudio, FileImage, FileVideo, Pause, Play, RefreshCw, Upload } from 'lucide-react'
-import { api, researchContentUrl, uploadResearchMedia } from './api'
+import { researchContentUrl } from './api'
 import { HybridEvaluation } from './HybridEvaluation'
 import { ResearchMap } from './ResearchMap'
-import { compassName, fileKind, neighboringZones } from './researchUtils.mjs'
+import { MiniLine, MelHeatmap } from './ResearchPlots'
+import { compassName, fileKind } from './researchUtils.mjs'
 import './research.css'
 
 function Section({ eyebrow, title, aside, children, className = '' }) {
   return <section className={`panel research-section ${className}`}><div className="panel-heading"><div><small>{eyebrow}</small><h2>{title}</h2></div>{aside}</div>{children}</section>
 }
 
-function MiniLine({ values, color = 'var(--olive)' }) {
-  if (!values?.length) return <p className="research-empty">No measured samples yet.</p>
-  const min = Math.min(...values), max = Math.max(...values), range = Math.max(max - min, 1e-9)
-  const points = values.map((value, index) => `${index / Math.max(1, values.length - 1) * 100},${42 - (value - min) / range * 37}`).join(' ')
-  return <svg className="research-chart" viewBox="0 0 100 45" preserveAspectRatio="none" role="img" aria-label="Audio feature plot"><polyline points={points} fill="none" stroke={color} strokeWidth="1.3" vectorEffect="non-scaling-stroke" /></svg>
-}
-
-function MelHeatmap({ rows }) {
-  const canvas = useRef(null)
-  useEffect(() => {
-    if (!rows?.length || !canvas.current) return
-    const context = canvas.current.getContext('2d')
-    const height = rows.length, width = rows[0]?.length ?? 0
-    if (!width) return
-    const maximum = Math.max(...rows.flat())
-    const cellWidth = canvas.current.width / width, cellHeight = canvas.current.height / height
-    rows.forEach((row, y) => row.forEach((value, x) => {
-      const intensity = Math.max(0, Math.min(1, (value - maximum + 80) / 80))
-      context.fillStyle = `hsl(${180 - intensity * 142} 42% ${12 + intensity * 64}%)`
-      context.fillRect(x * cellWidth, (height - y - 1) * cellHeight, Math.ceil(cellWidth), Math.ceil(cellHeight))
-    }))
-  }, [rows])
-  return <canvas ref={canvas} width="560" height="175" className="research-mel" role="img" aria-label="Log-Mel spectrogram computed from uploaded WAV" />
-}
-
 const statusLabel = { missing: 'Missing artifacts', incompatible: 'Package incomplete', package_complete_unverified: 'Package verified · inference untested' }
 
-export function ResearchLab({ theme }) {
-  const [state, setState] = useState({ loading: true, scenario: null, models: null, sensors: [], media: [], health: null, error: '' })
-  const [focus, setFocus] = useState(null)
-  const [step, setStep] = useState(0)
-  const [playing, setPlaying] = useState(false)
-  const [renderMs, setRenderMs] = useState(null)
-  const frameStarted = useRef(null)
-  const [selectedMediaId, setSelectedMediaId] = useState(null)
-  const [visualization, setVisualization] = useState(null)
+export function ResearchLab({ theme, workspace }) {
+  const { data: state, scenario, visibleIds, observation, focus, setFocus, step, setStep, playing, setPlaying,
+    renderMs, selectedMediaId, setSelectedMediaId, selectedMedia, annotations, visualization } = workspace
   const [annotation, setAnnotation] = useState({ label: 'uncertain', reviewer: 'research-operator', note: '' })
-  const [annotations, setAnnotations] = useState([])
   const [file, setFile] = useState(null)
   const [sensorId, setSensorId] = useState('')
   const [sensorName, setSensorName] = useState('')
@@ -55,60 +24,24 @@ export function ResearchLab({ theme }) {
   const [uploadState, setUploadState] = useState('idle')
   const [notice, setNotice] = useState('')
 
-  const load = useCallback(async () => {
-    try {
-      const [scenario, models, sensors, media, health] = await Promise.all([
-        api.researchScenario(), api.researchModels(), api.researchSensors(), api.researchMedia(), api.researchHealth(),
-      ])
-      setState({ loading: false, scenario, models, sensors, media, health, error: '' })
-    } catch (error) {
-      setState(previous => ({ ...previous, loading: false, error: error.message }))
-    }
-  }, [])
-  useEffect(() => { void load() }, [load])
-
-  const scenario = state.scenario
-  const visibleIds = useMemo(() => scenario ? focus ? neighboringZones(scenario.sites, focus) : scenario.default_visible : [], [scenario, focus])
-  const observation = scenario?.observations[step] ?? null
   const currentZone = scenario?.sites.find(site => site.site_id === observation?.site_id)
-  const selectedMedia = state.media.find(item => item.id === selectedMediaId) ?? null
   const kind = fileKind(file?.name)
   const allowedSensors = state.sensors.filter(sensor => visibleIds.includes(sensor.site_id) && (kind === 'audio' ? sensor.kind === 'microphone' : sensor.kind === 'camera'))
   const chosenSensor = allowedSensors.find(sensor => sensor.id === sensorId) ?? allowedSensors[0]
 
-  useEffect(() => {
-    if (!playing || !scenario) return
-    const timer = setInterval(() => { frameStarted.current = performance.now(); setStep(previous => (previous + 1) % scenario.observations.length) }, scenario.refresh_interval_ms)
-    return () => clearInterval(timer)
-  }, [playing, scenario])
-  useEffect(() => {
-    if (frameStarted.current == null) return
-    const id = requestAnimationFrame(() => { setRenderMs(Number((performance.now() - frameStarted.current).toFixed(2))); frameStarted.current = null })
-    return () => cancelAnimationFrame(id)
-  }, [step])
-  useEffect(() => {
-    if (!selectedMediaId) { setVisualization(null); setAnnotations([]); return }
-    let active = true
-    api.researchMediaDetail(selectedMediaId).then(value => { if (active) setAnnotations(value.annotations) }).catch(() => { if (active) setAnnotations([]) })
-    if (selectedMedia?.extension === 'wav') api.researchVisualization(selectedMediaId).then(value => { if (active) setVisualization(value) }).catch(() => { if (active) setVisualization(null) })
-    else setVisualization(null)
-    return () => { active = false }
-  }, [selectedMediaId, selectedMedia?.extension])
-
   async function refreshModels() {
-    try { const models = await api.refreshResearchModels(); setState(previous => ({ ...previous, models })); setNotice('Model packages refreshed.') }
+    try { await workspace.refreshModels(); setNotice('Model packages refreshed.') }
     catch (error) { setNotice(`Model refresh failed: ${error.message}`) }
   }
   async function addSensor(event) {
     event.preventDefault()
     try {
-      const sensor = await api.createResearchSensor({ site_id: focus ?? visibleIds[0], name: sensorName, kind: sensorKind })
-      setState(previous => ({ ...previous, sensors: [...previous.sensors, sensor] }))
+      const sensor = await workspace.addSensor({ site_id: focus ?? visibleIds[0], name: sensorName, kind: sensorKind })
       setSensorName(''); setNotice(`Virtual ${sensorKind} added.`)
     } catch (error) { setNotice(`Sensor could not be added: ${error.message}`) }
   }
   async function deleteSensor(id) {
-    try { await api.deleteResearchSensor(id); setState(previous => ({ ...previous, sensors: previous.sensors.filter(item => item.id !== id) })); setNotice('Virtual sensor removed.') }
+    try { await workspace.deleteSensor(id); setNotice('Virtual sensor removed.') }
     catch (error) { setNotice(`Sensor could not be removed: ${error.message}`) }
   }
   async function upload(event) {
@@ -116,9 +49,8 @@ export function ResearchLab({ theme }) {
     if (!file || !chosenSensor) return
     setUploadState('validating')
     try {
-      const saved = await uploadResearchMedia(file, chosenSensor.site_id, chosenSensor.id)
-      setState(previous => ({ ...previous, media: [saved, ...previous.media] }))
-      setSelectedMediaId(saved.id); setFile(null); setUploadState('ready'); setNotice(`Original ${saved.extension.toUpperCase()} preserved. SHA256 recorded.`)
+      const saved = await workspace.upload(file, chosenSensor)
+      setFile(null); setUploadState('ready'); setNotice(`Original ${saved.extension.toUpperCase()} preserved. SHA256 recorded.`)
       event.target.reset()
     } catch (error) { setUploadState('error'); setNotice(`Media rejected: ${error.message}`) }
   }
@@ -126,13 +58,13 @@ export function ResearchLab({ theme }) {
     event.preventDefault()
     if (!selectedMedia) return
     try {
-      const saved = await api.researchAnnotate(selectedMedia.id, annotation)
-      setAnnotations(previous => [...previous, saved]); setAnnotation(previous => ({ ...previous, note: '' })); setNotice('Human annotation saved separately from model outputs.')
+      await workspace.annotate(selectedMedia.id, annotation)
+      setAnnotation(previous => ({ ...previous, note: '' })); setNotice('Human annotation saved separately from model outputs.')
     } catch (error) { setNotice(`Annotation failed: ${error.message}`) }
   }
 
   if (state.loading) return <section className="panel padded" role="status">Loading fictional sites and local research services…</section>
-  if (state.error && !scenario) return <section className="panel padded" role="alert">Research API unavailable: {state.error}. The existing synthetic operations console remains available. <button onClick={load}>Retry</button></section>
+  if (state.error && !scenario) return <section className="panel padded" role="alert">Research API unavailable: {state.error}. The existing synthetic operations console remains available. <button onClick={workspace.refresh}>Retry</button></section>
 
   return <div className="research-lab">
     <div className="research-intro"><div><small>HARDWARE-FREE RESEARCH · FICTIONAL GEOGRAPHY</small><h2>Hybrid awareness laboratory</h2><p>Acoustic cue, optional visual review and independent temporal activity research. All motion here is predefined synthetic replay.</p></div><div className="research-pills"><span>28 fictional sites</span><span>200 ms replay refresh</span><span>Advisory only</span></div></div>
@@ -173,6 +105,6 @@ export function ResearchLab({ theme }) {
       <Section eyebrow="SYNTHETIC TRUTH · INDEPENDENT CHECK" title="Trajectory and zone history"><div className="research-metrics"><span>Distance MAE <strong>{scenario.validation.distance_mae_m} m</strong></span><span>Distance RMSE <strong>{scenario.validation.distance_rmse_m} m</strong></span><span>Heading circular MAE <strong>{scenario.validation.circular_heading_mae_deg}°</strong></span></div><div className="research-history">{scenario.observations.slice(Math.max(0, step - 6), step + 1).reverse().map(item => <div key={item.step}><span>T+{Math.round(item.elapsed_ms / 1000)} s</span><strong>{item.site_id}</strong><span>{item.distance_from_previous_m ?? '—'} m</span><span>{item.speed_mps ?? '—'} m/s</span><span>±{item.position_uncertainty_m.toFixed(1)} m</span></div>)}</div><p className="research-note">Ground truth uses an independent local metric plane. Geographic values are synthetic and never inferred from uploaded media.</p></Section>
       <Section eyebrow="MEASURED PROCESSING · SIMULATED REPLAY" title="Performance and health"><div className="research-metrics"><span>Replay interval <strong>{scenario.refresh_interval_ms} ms</strong></span><span>UI frame latency <strong>{renderMs == null ? 'Awaiting replay' : `${renderMs} ms`}</strong></span><span>WAV processing <strong>{visualization ? `${visualization.processing_ms} ms` : 'Unavailable'}</strong></span><span>Field accuracy <strong>Unavailable</strong></span><span>Power use <strong>Unavailable</strong></span></div><p className="research-note">UI timing, WAV processing, model inference and sensor latency are separate measurements. No model benchmark or energy saving is inferred from this scenario.</p><div className="research-health"><Activity size={15}/> {state.health?.mode || 'Offline research'} · {state.health?.preserved_media ?? 0} preserved media · No physical controls</div></Section>
     </div>
-    <HybridEvaluation />
+    <HybridEvaluation evaluation={{ state: workspace.hybrid, run: workspace.runHybrid }}/>
   </div>
 }

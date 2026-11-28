@@ -9,13 +9,16 @@ import { AnnotatedVideo } from './AnnotatedVideo'
 import { HybridEvaluation } from './HybridEvaluation'
 import { SiteWeather } from './SiteWeather'
 import { ResearchLab } from './ResearchLab'
+import { ResearchOverviewMap, ResearchOverviewStatus } from './ResearchOverview'
+import { LiveInputs } from './LiveInputs'
+import { useResearchWorkspace } from './useResearchWorkspace'
 import { useConsoleData } from './useConsoleData'
 import { decisionPayload, demoFrame, demoZones, fallbackSites, fallbackCameras, latest, observationsForSite, pointFor, siteBounds, sortTracks } from './scenario'
 import './styles.css'
 import './console-layout.css'
 import './theme.css'
 
-const TABS = ['Research lab', 'Overview', 'Video replay', 'Analytics', 'Evidence', 'Incident history', 'Model evaluation', 'System health']
+const TABS = ['Overview', 'Research lab', 'Video replay', 'Analytics', 'Evidence', 'Incident history', 'Model evaluation', 'System health']
 const time = value => value ? new Date(value).toLocaleTimeString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC' : '—'
 const label = value => value?.replaceAll('_', ' ') ?? '—'
 
@@ -67,12 +70,15 @@ function IncidentQueue({ tracks, selectedId, onInspect, onDecision, busy }) {
 
 function CameraReplay({ observation, cameras, playing, setPlaying, frameIndex, setFrameIndex, track }) {
   const points = track?.observations || []
+  const localPath = points.map(item => pointFor(item, siteBounds)).filter(Boolean)
+  const selectedPoint = observation ? pointFor(observation, siteBounds) : null
   const age = observation ? (Date.now() - Date.parse(observation.timestamp)) / 1000 : NaN
   const ageLabel = observation?.source === 'synthetic' ? 'Synthetic replay'
     : Number.isFinite(age) && age >= 0 ? `${Math.floor(age)} s` : 'Unavailable'
   return <Panel eyebrow="ILLUSTRATIVE FRAME · SYNTHETIC" title="Camera replay" aside={<Badge tone="cyan">{observation?.camera_id || 'No camera'}</Badge>}>
     <div className="replay-body">
     <div className="feed"><img src={demoFrame.asset} alt="Synthetic night CCTV scene with a drone and bird" /><span className="feed-stamp">{time(observation?.timestamp)} · SYNTHETIC</span>{observation && demoFrame.annotations.filter(item => item.class_name === observation.class_name).map(item => <span key={item.class_name} className={'feed-box ' + (item.class_name === 'bird' ? 'bird' : 'drone')} style={{ left: `${item.bbox_xyxy[0] / demoFrame.width * 100}%`, top: `${item.bbox_xyxy[1] / demoFrame.height * 100}%`, width: `${(item.bbox_xyxy[2] - item.bbox_xyxy[0]) / demoFrame.width * 100}%`, height: `${(item.bbox_xyxy[3] - item.bbox_xyxy[1]) / demoFrame.height * 100}%` }}>{track?.track_id} · {Math.round(observation.confidence * 100)}%</span>)}</div>
+    <div className="camera-path-chart" aria-label="Selected site-local camera observation path"><div><strong>{track?.track_id ?? 'No track'} · {observation?.camera_id ?? 'No camera'}</strong><small>SYNTHETIC SITE-LOCAL PATH · {observation?.latitude?.toFixed(5) ?? '—'}, {observation?.longitude?.toFixed(5) ?? '—'}</small></div><svg viewBox="0 0 100 100" role="img" aria-label="Site-local observed path and selected frame"><polyline points={localPath.map(point => `${point.x},${point.y}`).join(' ')} fill="none" stroke="var(--olive)" strokeWidth="1"/>{selectedPoint && <circle cx={selectedPoint.x} cy={selectedPoint.y} r="2" fill="var(--sand)" stroke="white" strokeWidth=".5"/>}</svg></div>
     <div className="replay-details">
     <div className="transport"><button onClick={() => { setPlaying(!playing) }} disabled={points.length < 2} aria-label={playing ? 'Pause replay' : 'Play replay'}>{playing ? <Pause size={16}/> : <Play size={16}/>}</button><input aria-label="Replay observation" type="range" min="0" max={Math.max(0, points.length - 1)} value={Math.min(frameIndex, Math.max(0, points.length - 1))} onChange={event => { setPlaying(false); setFrameIndex(Number(event.target.value)) }}/><span>{points.length ? Math.min(frameIndex + 1, points.length) : 0}/{points.length}</span></div>
     <div className="detail-grid"><Metric label="CLASS" value={observation?.class_name || '—'}/><Metric label="CONFIDENCE" value={observation ? `${Math.round(observation.confidence * 100)}%` : '—'}/><Metric label="CAMERA" value={observation?.camera_id || '—'}/><Metric label="SOURCE" value={observation?.source || '—'}/></div>
@@ -102,20 +108,21 @@ function Review({ track, incident, analytics, allocation, onDecision, busy, noti
   </Panel>
 }
 
-function Secondary({ tab, track, analytics, incident, cameras, status, mode, updatedAt, onExport }) {
+function Secondary({ tab, track, analytics, incident, cameras, status, mode, updatedAt, onExport, workspace }) {
   if (tab === 'Analytics') return <div className="secondary-grid"><Panel eyebrow="TRACK KINEMATICS" title="Trajectory analytics"><div className="detail-grid large"><Metric label="PATH LENGTH" value={analytics ? `${analytics.path_length_m} m` : 'Unavailable'}/><Metric label="DISPLACEMENT" value={analytics ? `${analytics.displacement_m} m` : 'Unavailable'}/><Metric label="SPEED" value={analytics ? `${analytics.current_speed_mps} m/s` : 'Unavailable'}/><Metric label="HEADING" value={analytics ? `${analytics.heading_deg}°` : 'Unavailable'}/><Metric label="LOITER / DWELL" value={analytics ? `${analytics.dwell_seconds} s` : 'Unavailable'}/><Metric label="ZONE ETA" value={analytics?.eta_to_restricted_zone_s != null ? `${analytics.eta_to_restricted_zone_s} s` : 'Unavailable'}/></div><p className="muted padded">Metrics use synthetic site coordinates. Camera calibration and uncertainty need field validation.</p></Panel><Panel eyebrow="SENSOR FUSION" title="Evidence sources"><p className="padded">Video classification and confidence are available in the replay scenario. Acoustic, radar, thermal and Remote ID fixtures exist but are not synchronized into a measured fused score here.</p></Panel></div>
   if (tab === 'Evidence') return <Panel eyebrow="TIMESTAMPED HANDOFF" title="Evidence package" aside={<button disabled={!incident} onClick={onExport}><Download size={14}/> Export JSON</button>}><pre>{JSON.stringify(incident || { state: 'Incident unavailable' }, null, 2)}</pre></Panel>
   if (tab === 'Incident history') return <Panel eyebrow="OPERATOR AUDIT" title="Decision history">{incident?.decisions?.length ? incident.decisions.map((d, i) => <div className="history-row" key={i}><Badge tone="cyan">{d.decision}</Badge><span>{label(d.action)}</span><span>{time(d.decided_at)}</span><span>{d.note}</span></div>) : <p className="empty">No recorded decisions for this track.</p>}</Panel>
-  if (tab === 'Model evaluation') return <div className="secondary-grid"><Panel eyebrow="DETECTOR OUTPUT" title="YOLO / vision results"><p className="padded">The synthetic scenario contains labeled detection confidence. A trained detector has not been run on this image.</p><div className="detail-grid"><Metric label="SCENARIO CLASS" value={latest(track)?.class_name || '—'}/><Metric label="SCENARIO CONFIDENCE" value={latest(track) ? `${Math.round(latest(track).confidence * 100)}%` : '—'}/><Metric label="PRECISION / RECALL" value="Unavailable"/><Metric label="MODEL VERSION" value="Unavailable"/></div></Panel><HybridEvaluation/></div>
+  if (tab === 'Model evaluation') return <div className="secondary-grid"><Panel eyebrow="DETECTOR OUTPUT" title="YOLO / vision results"><p className="padded">The synthetic scenario contains labeled detection confidence. A trained detector has not been run on this image.</p><div className="detail-grid"><Metric label="SCENARIO CLASS" value={latest(track)?.class_name || '—'}/><Metric label="SCENARIO CONFIDENCE" value={latest(track) ? `${Math.round(latest(track).confidence * 100)}%` : '—'}/><Metric label="PRECISION / RECALL" value="Unavailable"/><Metric label="MODEL VERSION" value="Unavailable"/></div></Panel><HybridEvaluation evaluation={{ state: workspace.hybrid, run: workspace.runHybrid }}/></div>
   return <Panel eyebrow="SITE TELEMETRY" title="System health"><div className="detail-grid large"><Metric label="API" value={status}/><Metric label="DATA MODE" value={mode}/><Metric label="LAST SYNC" value={updatedAt ? new Date(updatedAt).toLocaleTimeString() : 'Never'}/><Metric label="CAMERAS CONFIGURED" value={cameras.length}/></div><p className="padded muted">Camera availability comes from configuration. Live stream health and latency are unavailable until hardware is connected.</p></Panel>
 }
 
 function App() {
   const consoleData = useConsoleData()
+  const workspace = useResearchWorkspace()
   const [theme, setTheme] = useState(() => localStorage.getItem('vigilair-theme') === 'light' ? 'light' : 'dark')
   const [siteId, setSiteId] = useState('berlin-brandenburg-demo')
   const [selectedId, setSelectedId] = useState('VIG-042')
-  const [tab, setTab] = useState('Research lab')
+  const [tab, setTab] = useState('Overview')
   const [frameIndex, setFrameIndex] = useState(null)
   const [playing, setPlaying] = useState(false)
   const [incident, setIncident] = useState(null)
@@ -134,7 +141,7 @@ function App() {
   const selectObservation = (id, index) => { setSelectedId(id); setFrameIndex(index); setPlaying(false) }
   useEffect(() => { if (!playing || !track) return; const timer = setInterval(() => setFrameIndex(index => ((index ?? -1) + 1) % track.observations.length), 900); return () => clearInterval(timer) }, [playing, track])
   useEffect(() => { if (consoleData.status !== 'connected' || !track) { setIncident(null); setAnalytics(null); setAllocation(null); return }; let active = true; Promise.allSettled([api.incident(track.track_id), api.analytics(track.track_id, siteId), api.allocation(track.track_id)]).then(results => { if (!active) return; setIncident(results[0].status === 'fulfilled' ? results[0].value : null); setAnalytics(results[1].status === 'fulfilled' ? results[1].value : null); setAllocation(results[2].status === 'fulfilled' ? results[2].value : null) }); return () => { active = false } }, [track?.track_id, siteId, consoleData.status, consoleData.updatedAt])
-  const inspect = id => { selectObservation(id, Math.max(0, (tracks.find(item => item.track_id === id)?.observations.length ?? 1) - 1)); setTab('Overview'); setNotice('') }
+  const inspect = id => { selectObservation(id, Math.max(0, (tracks.find(item => item.track_id === id)?.observations.length ?? 1) - 1)); workspace.setShowIncidents(true); setTab('Overview'); setNotice('') }
   const beginReview = (target, decision) => {
     const actions = target.risk.recommended_actions ?? []
     setReview({ id: target.track_id, decision, actions, action: actions[0] ?? '', note: '' })
@@ -167,7 +174,7 @@ function App() {
       {consoleData.status !== 'connected' && <div className="state-banner" role="status"><AlertTriangle size={15}/>{consoleData.status === 'loading' ? 'Connecting to API…' : consoleData.status === 'stale' ? 'API data is stale. Last known data shown.' : 'API disconnected. Synthetic local scenario shown; decisions cannot be recorded.'}{consoleData.error && <span>{consoleData.error}</span>}</div>}
       <nav className="tabs" aria-label="Console sections">{TABS.map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)} aria-current={tab === item ? 'page' : undefined}>{item}</button>)}</nav>
       {tab !== 'Research lab' && <SiteWeather site={consoleData.sites.find(site => site.site_id === siteId)}/>}
-      {tab === 'Research lab' ? <ResearchLab theme={theme}/> : tab === 'Overview' ? <><div className="primary-grid"><SiteMap forecast={forecast} tracks={tracks} selectedId={track?.track_id} selectedObservation={observation} onSelectObservation={selectObservation} zones={siteId === fallbackSites[0].site_id ? demoZones : []}/><IncidentQueue tracks={tracks} selectedId={track?.track_id} onInspect={inspect} onDecision={beginReview} busy={busy}/></div><div className="lower-grid"><CameraReplay observation={observation} track={track} cameras={consoleData.cameras.length ? consoleData.cameras : fallbackCameras} playing={playing} setPlaying={setPlaying} frameIndex={replayIndex} setFrameIndex={setFrameIndex}/><Review track={track} incident={incident} analytics={analytics} allocation={allocation} onDecision={beginReview} busy={busy} notice={notice}/></div><RegionalTracks sites={consoleData.sites} siteId={siteId} localTrackId={track?.track_id} status={consoleData.status} updatedAt={consoleData.updatedAt} onInspectSite={(site, id) => { setSiteId(site); selectObservation(id, null) }}/><ThermalEvidence observation={observation}/></> : tab !== 'Video replay' ? <Secondary tab={tab} track={track} analytics={analytics} incident={report} cameras={consoleData.cameras} status={consoleData.status} mode={consoleData.mode} updatedAt={consoleData.updatedAt} onExport={exportReport}/> : null}
+      {tab === 'Research lab' ? <ResearchLab theme={theme} workspace={workspace}/> : tab === 'Overview' ? <><div className="primary-grid"><div><ResearchOverviewMap workspace={workspace} theme={theme} operationTracks={consoleData.tracks} operationalSiteId={siteId} selectedIncidentId={track?.track_id} onIncidentSelect={inspect}/><details className="research-legacy-map"><summary>Site-coordinate incident track detail</summary><SiteMap forecast={forecast} tracks={tracks} selectedId={track?.track_id} selectedObservation={observation} onSelectObservation={selectObservation} zones={siteId === fallbackSites[0].site_id ? demoZones : []}/></details></div><IncidentQueue tracks={tracks} selectedId={track?.track_id} onInspect={inspect} onDecision={beginReview} busy={busy}/></div><ResearchOverviewStatus workspace={workspace} onOpenLab={() => setTab('Research lab')}/><LiveInputs workspace={workspace}/><div className="lower-grid"><CameraReplay observation={observation} track={track} cameras={consoleData.cameras.length ? consoleData.cameras : fallbackCameras} playing={playing} setPlaying={setPlaying} frameIndex={replayIndex} setFrameIndex={setFrameIndex}/><Review track={track} incident={incident} analytics={analytics} allocation={allocation} onDecision={beginReview} busy={busy} notice={notice}/></div><RegionalTracks sites={consoleData.sites} siteId={siteId} localTrackId={track?.track_id} status={consoleData.status} updatedAt={consoleData.updatedAt} onInspectSite={(site, id) => { setSiteId(site); selectObservation(id, null) }}/><ThermalEvidence observation={observation}/></> : tab !== 'Video replay' ? <Secondary tab={tab} track={track} analytics={analytics} incident={report} cameras={consoleData.cameras} status={consoleData.status} mode={consoleData.mode} updatedAt={consoleData.updatedAt} onExport={exportReport} workspace={workspace}/> : null}
       <div hidden={tab !== 'Video replay'}><AnnotatedVideo active={tab === 'Video replay'} tracks={tracks} onSelectObservation={selectObservation} onEvidence={setVideoEvidence}/>{videoEvidence && <p className="padded" role="status">Evidence selected · frame {videoEvidence.frame} · {videoEvidence.linked_track_id || 'No verified track link'}</p>}</div>
       {review && <form className="panel review-form" onSubmit={saveReview} aria-label="Record operator decision">
         <strong>{label(review.decision)} · {review.id}</strong>

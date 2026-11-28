@@ -7,6 +7,8 @@ setWorkerUrl(workerUrl)
 
 const collection = features => ({ type: 'FeatureCollection', features })
 const shape = (type, coordinates) => collection([{ type: 'Feature', properties: {}, geometry: { type, coordinates } }])
+const blankStyle = { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#101a21' } }] }
+const licensedStyleURL = import.meta.env.VITE_RESEARCH_BASEMAP_STYLE_URL || ''
 const zoneColor = ['match', ['get', 'state'], 'tracked', '#e1bb7c', 'predicted_next', '#f4a86f', 'watch', '#91c5af', 'active', '#88a8b0', '#3d5659']
 
 function sector(coordinates) {
@@ -17,29 +19,37 @@ function sector(coordinates) {
   return shape('Polygon', [[start, edge(-.18), edge(.18), start]])
 }
 
-export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSelect }) {
+export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSelect, incidentTracks = [], selectedIncidentId, onIncidentSelect }) {
   const element = useRef(null)
   const mapRef = useRef(null)
   const droneRef = useRef(null)
   const targetRef = useRef(null)
   const labelsRef = useRef([])
+  const incidentMarkersRef = useRef([])
+  const fallbackRef = useRef(false)
   const selectRef = useRef(onZoneSelect)
   selectRef.current = onZoneSelect
+  const incidentSelectRef = useRef(onIncidentSelect)
+  incidentSelectRef.current = onIncidentSelect
   const [mapState, setMapState] = useState('loading')
   const [mode, setMode] = useState('2d')
 
   useEffect(() => {
     if (!element.current || !scenario) return
     const initial = scenario.sites.find(site => site.site_id === scenario.default_visible[0]) ?? scenario.sites[0]
+    fallbackRef.current = false
     let map
+    let ready = false
+    let fallbackUsed = false
     try {
       map = new Map({ container: element.current, center: [initial.longitude, initial.latitude], zoom: 11,
         attributionControl: false, dragRotate: false, pitchWithRotate: false,
-        style: { version: 8, sources: {}, layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#101a21' } }] } })
+        style: licensedStyleURL || blankStyle })
       mapRef.current = map
       map.on('zoomend', () => { if (element.current) element.current.dataset.zoom = map.getZoom().toFixed(2) })
       map.on('load', () => {
-        for (const id of ['zones', 'trail', 'prediction', 'sector']) map.addSource(id, { type: 'geojson', data: collection([]) })
+        ready = true
+        for (const id of ['zones', 'trail', 'prediction', 'sector', 'incident-drone', 'incident-bird']) map.addSource(id, { type: 'geojson', data: collection([]) })
         map.addLayer({ id: 'zone-fill', type: 'fill', source: 'zones', paint: { 'fill-color': zoneColor, 'fill-opacity': ['case', ['get', 'visible'], .42, ['==', ['get', 'state'], 'predicted_next'], .29, .075] } })
         map.addLayer({ id: 'zone-extrusion', type: 'fill-extrusion', source: 'zones', layout: { visibility: 'none' }, paint: { 'fill-extrusion-color': zoneColor, 'fill-extrusion-height': ['case', ['get', 'visible'], 140, 45], 'fill-extrusion-opacity': .46 } })
         map.addLayer({ id: 'zone-line', type: 'line', source: 'zones', paint: { 'line-color': zoneColor, 'line-width': ['case', ['get', 'visible'], 2.2, ['==', ['get', 'state'], 'predicted_next'], 1.7, .8], 'line-opacity': ['case', ['get', 'visible'], .95, ['==', ['get', 'state'], 'predicted_next'], .85, .35] } })
@@ -47,6 +57,8 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
         map.addLayer({ id: 'trail-line', type: 'line', source: 'trail', paint: { 'line-color': '#85c0b2', 'line-width': 3 } })
         map.addLayer({ id: 'prediction-halo', type: 'line', source: 'prediction', paint: { 'line-color': '#11191c', 'line-width': 7, 'line-opacity': .7 } })
         map.addLayer({ id: 'prediction-line', type: 'line', source: 'prediction', paint: { 'line-color': '#ffe3a8', 'line-width': 4, 'line-dasharray': [1, 1.5] } })
+        map.addLayer({ id: 'incident-drone-line', type: 'line', source: 'incident-drone', paint: { 'line-color': '#ffbd79', 'line-width': 3.5 } })
+        map.addLayer({ id: 'incident-bird-line', type: 'line', source: 'incident-bird', paint: { 'line-color': '#91d4a5', 'line-width': 3.5 } })
         map.on('click', 'zone-fill', event => { const id = event.features?.[0]?.properties?.site_id; if (id) selectRef.current(id) })
         const node = document.createElement('div')
         node.className = 'research-drone-marker'
@@ -59,9 +71,12 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
         targetRef.current = new Marker({ element: target, anchor: 'center' }).setLngLat([initial.longitude, initial.latitude]).addTo(map)
         setMapState('ready')
       })
-      map.on('error', () => setMapState(previous => previous === 'ready' ? previous : 'unavailable'))
+      map.on('error', () => {
+        if (licensedStyleURL && !ready && !fallbackUsed) { fallbackUsed = true; fallbackRef.current = true; map.setStyle(blankStyle); return }
+        if (!ready) setMapState('unavailable')
+      })
     } catch { setMapState('unavailable') }
-    return () => { labelsRef.current.forEach(marker => marker.remove()); labelsRef.current = []; droneRef.current?.remove(); targetRef.current?.remove(); droneRef.current = null; targetRef.current = null; mapRef.current = null; map?.remove() }
+    return () => { labelsRef.current.forEach(marker => marker.remove()); incidentMarkersRef.current.forEach(marker => marker.remove()); labelsRef.current = []; incidentMarkersRef.current = []; droneRef.current?.remove(); targetRef.current?.remove(); droneRef.current = null; targetRef.current = null; mapRef.current = null; map?.remove() }
   }, [scenario?.scenario_id])
 
   useEffect(() => {
@@ -117,7 +132,27 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
   useEffect(() => {
     const map = mapRef.current
     if (!map || mapState !== 'ready') return
-    map.setPaintProperty('background', 'background-color', theme === 'light' ? '#e6ebe5' : '#101a21')
+    for (const kind of ['drone', 'bird']) {
+      const features = incidentTracks.filter(track => track.class_name === kind && track.coordinates.length > 1)
+        .map(track => ({ type: 'Feature', properties: { track_id: track.track_id }, geometry: { type: 'LineString', coordinates: track.coordinates } }))
+      map.getSource(`incident-${kind}`).setData(collection(features))
+    }
+    incidentMarkersRef.current.forEach(marker => marker.remove())
+    incidentMarkersRef.current = incidentTracks.map(track => {
+      const node = document.createElement('button')
+      node.type = 'button'
+      node.className = `research-incident-marker ${track.class_name === 'bird' ? 'bird' : 'drone'} ${selectedIncidentId === track.track_id ? 'selected' : ''}`
+      node.textContent = `${track.track_id} · ${track.class_name.toUpperCase()}`
+      node.title = `${track.track_id}: illustrative site-local projection. Inspect synthetic camera observation.`
+      node.addEventListener('click', event => { event.stopPropagation(); incidentSelectRef.current?.(track.track_id) })
+      return new Marker({ element: node, anchor: 'bottom' }).setLngLat(track.coordinates.at(-1)).addTo(map)
+    })
+  }, [incidentTracks, selectedIncidentId, mapState])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || mapState !== 'ready') return
+    if (map.getLayer('background') && (!licensedStyleURL || fallbackRef.current)) map.setPaintProperty('background', 'background-color', theme === 'light' ? '#e6ebe5' : '#101a21')
     map.setLayoutProperty('zone-extrusion', 'visibility', mode === '3d' ? 'visible' : 'none')
     map.easeTo({ pitch: mode === '3d' ? 52 : 0, bearing: mode === '3d' ? -18 : 0, duration: 300 })
   }, [theme, mode, mapState])
@@ -125,6 +160,6 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
   return <div className="research-map-wrap"><div className="research-map" ref={element} role="img" aria-label="MapLibre honeycomb of fictional hexagonal zones with synthetic drone trail and estimated path" />
     <div className="research-map-controls" role="group" aria-label="Map view controls"><button type="button" className={mode === '2d' ? 'selected' : ''} onClick={() => setMode('2d')} aria-pressed={mode === '2d'}>2D</button><button type="button" className={mode === '3d' ? 'selected' : ''} onClick={() => setMode('3d')} aria-pressed={mode === '3d'}>3D</button><button type="button" aria-label="Zoom in" onClick={() => mapRef.current?.zoomIn()}>+</button><button type="button" aria-label="Zoom out" onClick={() => mapRef.current?.zoomOut()}>−</button></div>
     {mapState === 'unavailable' && <p className="research-map-fallback">WebGL map unavailable. Use the zone selector and observation history below.</p>}
-    <span className="research-map-watermark">FICTIONAL GEOJSON · ESTIMATED PATH · NO BASEMAP</span>
+    <span className="research-map-watermark">FICTIONAL GEOJSON · ESTIMATED PATH · {licensedStyleURL ? 'OPTIONAL LICENSED BASEMAP' : 'OFFLINE BASEMAP'}</span>
   </div>
 }

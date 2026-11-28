@@ -10,16 +10,33 @@ class PackageRegistry:
     def __init__(self, root: Path):
         self.root = root.resolve()
         self._lock = RLock()
+        self._fingerprint = None
         self._snapshot = self.refresh()
+
+    def _files_fingerprint(self) -> tuple:
+        paths = [self.root / "registry.json"]
+        paths.extend(path for directory in self.root.iterdir() if directory.is_dir() and directory.resolve().is_relative_to(self.root)
+                     for path in directory.iterdir() if path.is_file() and path.suffix.lower() in {".json", ".pt", ".pth", ".onnx", ".safetensors"})
+        return tuple(sorted((str(path.relative_to(self.root)), path.stat().st_size, path.stat().st_mtime_ns)
+                            for path in paths if path.is_file()))
 
     def refresh(self) -> dict:
         with self._lock:
             manifest = json.loads((self.root / "registry.json").read_text(encoding="utf-8"))
             if manifest.get("schema_version") != 1 or not isinstance(manifest.get("packages"), list):
                 raise ValueError("Unsupported model registry schema")
+            declared = {package["id"]: package for package in manifest["packages"]}
+            for directory in self.root.iterdir():
+                package_file = directory / "package.json"
+                if not directory.is_dir() or not directory.resolve().is_relative_to(self.root) or not package_file.is_file():
+                    continue
+                discovered = json.loads(package_file.read_text(encoding="utf-8"))
+                if not isinstance(discovered, dict) or discovered.get("id") != directory.name:
+                    raise ValueError(f"Invalid package manifest in {directory.name}")
+                declared[discovered["id"]] = discovered
             packages = []
             ids = set()
-            for package in manifest["packages"]:
+            for package in declared.values():
                 package_id = package.get("id")
                 if not isinstance(package_id, str) or package_id in ids or not package_id.replace("-", "").isalnum():
                     raise ValueError("Invalid or duplicate model package ID")
@@ -68,8 +85,11 @@ class PackageRegistry:
                                  "artifacts": artifacts, "status": "missing" if any("missing" in item for item in problems) else "incompatible" if problems else "package_complete_unverified",
                                  "issues": problems})
             self._snapshot = {"schema_version": 1, "packages": packages, "note": "Package checks do not measure accuracy or execute model weights."}
+            self._fingerprint = self._files_fingerprint()
             return self._snapshot
 
     def snapshot(self) -> dict:
         with self._lock:
+            if self._files_fingerprint() != self._fingerprint:
+                return self.refresh()
             return self._snapshot

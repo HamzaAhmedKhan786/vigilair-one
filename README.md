@@ -2,9 +2,9 @@
 
 Low-cost aerial awareness and operator decision support for critical-infrastructure sites.
 
-The default **Research lab** offers an offline hardware-free demonstration with 28 fictional MapLibre zones, a synthetic hybrid event replay, local model-package readiness, virtual sensors, media review, human annotations, WAV plots, and persistent dark/light mode. See [Research demonstration](docs/RESEARCH_DEMO.md) for data provenance, model package requirements, endpoints, testing and limits. **Overview** retains the existing operator console and incident workflows.
+**Overview** opens by default with the fictional MapLibre honeycomb, synthetic replay, incident queue, camera replay, local evidence preview and operator review. **Research Lab** offers virtual sensors, media uploads, annotations, WAV analysis, model-package readiness and mathematical validation. Both use shared application state and the same FastAPI services. Optional local camera and microphone toggles support hardware-free input checks; drone classification remains unavailable without validated model weights. See [Research demonstration](docs/RESEARCH_DEMO.md) for provenance, setup, endpoints and limits.
 
-Research dashboard captures: [1440×900 dark 2D](docs/screenshots/research-1440.png) and [1920×1080 light 3D](docs/screenshots/research-1920-light.png). Capture the running API and Vite app again with `node scripts/capture_research.mjs`.
+Dashboard captures: [Overview 1440×900 dark 2D](docs/screenshots/overview-1440.png), [Overview 1920×1080 light 3D](docs/screenshots/overview-1920-light.png), [Research Lab dark 2D](docs/screenshots/research-1440.png), and [Research Lab light 3D](docs/screenshots/research-1920-light.png). Capture the running API and Vite app again with `node scripts/capture_research.mjs`.
 
 ## Run the demo
 
