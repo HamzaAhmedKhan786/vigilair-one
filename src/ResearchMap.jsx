@@ -156,8 +156,9 @@ export function ResearchMap({ scenario, visibleIds, observation, theme, onZoneSe
       node.type = 'button'
       node.className = `research-incident-marker ${track.class_name === 'bird' ? 'bird' : 'drone'} ${selectedIncidentId === track.track_id ? 'selected' : ''}`
       node.textContent = `${track.track_id} · ${track.class_name.toUpperCase()}`
+      node.dataset.sectorId = track.sector_id
       node.dataset.observationTime = track.observations[positionFor(track)]?.timestamp ?? ''
-      node.title = `${track.track_id}: illustrative site-local projection. Inspect synthetic camera observation.`
+      node.title = `${track.track_id}: illustrative placement in ${track.sector_id}. Inspect synthetic camera observation.`
       node.addEventListener('click', event => { event.stopPropagation(); incidentSelectRef.current?.(track.track_id) })
       return new Marker({ element: node, anchor: 'bottom' }).setLngLat(track.coordinates[positionFor(track)]).addTo(map)
     })

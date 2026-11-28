@@ -10,6 +10,7 @@ import { HybridEvaluation } from './HybridEvaluation'
 import { SiteWeather } from './SiteWeather'
 import { ResearchLab } from './ResearchLab'
 import { ResearchOverviewMap, ResearchOverviewStatus } from './ResearchOverview'
+import { incidentSectorId } from './incidentProjection.mjs'
 import { LiveInputs } from './LiveInputs'
 import { useResearchWorkspace } from './useResearchWorkspace'
 import { useConsoleData } from './useConsoleData'
@@ -141,7 +142,7 @@ function App() {
   const selectObservation = (id, index) => { setSelectedId(id); setFrameIndex(index); setPlaying(false) }
   useEffect(() => { if (!playing || !track) return; const timer = setInterval(() => setFrameIndex(index => ((index ?? -1) + 1) % track.observations.length), 900); return () => clearInterval(timer) }, [playing, track])
   useEffect(() => { if (consoleData.status !== 'connected' || !track) { setIncident(null); setAnalytics(null); setAllocation(null); return }; let active = true; Promise.allSettled([api.incident(track.track_id), api.analytics(track.track_id, siteId), api.allocation(track.track_id)]).then(results => { if (!active) return; setIncident(results[0].status === 'fulfilled' ? results[0].value : null); setAnalytics(results[1].status === 'fulfilled' ? results[1].value : null); setAllocation(results[2].status === 'fulfilled' ? results[2].value : null) }); return () => { active = false } }, [track?.track_id, siteId, consoleData.status, consoleData.updatedAt])
-  const inspect = id => { selectObservation(id, Math.max(0, (tracks.find(item => item.track_id === id)?.observations.length ?? 1) - 1)); workspace.setShowIncidents(true); setTab('Overview'); setNotice('') }
+  const inspect = id => { selectObservation(id, Math.max(0, (tracks.find(item => item.track_id === id)?.observations.length ?? 1) - 1)); const sectorId = incidentSectorId(id, workspace.scenario?.sites); if (sectorId) workspace.setFocus(sectorId); workspace.setShowIncidents(true); setTab('Overview'); setNotice('') }
   const beginReview = (target, decision) => {
     const actions = target.risk.recommended_actions ?? []
     setReview({ id: target.track_id, decision, actions, action: actions[0] ?? '', note: '' })
